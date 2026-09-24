@@ -1,0 +1,9 @@
+services:
+  smartstock-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smartstock-frontend
+    ports:
+      - "3000:80"
+    restart: always
