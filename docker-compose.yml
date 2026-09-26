@@ -1,4 +1,30 @@
 services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: smartstock-db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=SmartStockPass123!
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    restart: always
+
+  smartstock-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smartstock-backend
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=SmartStockDB;User Id=sa;Password=SmartStockPass123!;TrustServerCertificate=True;
+    depends_on:
+      - sqlserver
+    restart: always
+
   smartstock-frontend:
     build:
       context: .
@@ -6,4 +32,9 @@ services:
     container_name: smartstock-frontend
     ports:
       - "3000:80"
+    depends_on:
+      - smartstock-backend
     restart: always
+
+volumes:
+  sqlserver-data:
