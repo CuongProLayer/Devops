@@ -16,6 +16,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: smartstock-backend
+    volumes:
+      - category-images:/app/uploads/categories
     ports:
       - "5000:8080"
     environment:
@@ -38,3 +40,4 @@ services:
 
 volumes:
   sqlserver-data:
+  category-images:

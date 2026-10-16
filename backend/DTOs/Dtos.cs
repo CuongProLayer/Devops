@@ -4,7 +4,7 @@ namespace SmartStock.API.DTOs;
 
 // Auth
 public record LoginRequest(
-    [Required(ErrorMessage = "Email không được để trống")][EmailAddress(ErrorMessage = "Email không đúng định dạng")][StringLength(100)] string Email,
+    [Required(ErrorMessage = "Email hoặc tên đăng nhập không được để trống")][StringLength(100)] string Email,
     [Required(ErrorMessage = "Mật khẩu không được để trống")][StringLength(100, MinimumLength = 6, ErrorMessage = "Mật khẩu tối thiểu 6 ký tự")] string Password);
 
 public record RegisterRequest(
@@ -25,11 +25,6 @@ public record UpdateProfileRequest(
     [Required(ErrorMessage = "Họ và tên không được để trống")][StringLength(100, ErrorMessage = "Họ tên không vượt quá 100 ký tự")] string FullName,
     [Phone(ErrorMessage = "Số điện thoại không đúng định dạng")][StringLength(20)] string? Phone);
 
-public record ForgotPasswordRequest(
-    [Required(ErrorMessage = "Email không được để trống")][EmailAddress(ErrorMessage = "Email không đúng định dạng")][StringLength(100)] string Email);
-
-public record ForgotPasswordResponse(string Message, string? TemporaryPassword);
-
 // User
 public record UserDto(int Id, string Username, string Email, string FullName, string? Phone, string Role, bool IsActive, DateTime CreatedAt);
 
@@ -40,7 +35,8 @@ public record UpdateUserRequest(
     bool IsActive);
 
 // Category
-public record CategoryDto(int Id, string Name, string? Description, string? Icon, bool IsActive, int ProductCount);
+public record CategoryDto(int Id, string Name, string? Description, string? Icon, string? ImageUrl,
+    string? ImageContentType, bool IsActive, int ProductCount);
 
 public record CreateCategoryRequest(
     [Required(ErrorMessage = "Tên danh mục không được để trống")][StringLength(100, ErrorMessage = "Tên danh mục không vượt quá 100 ký tự")] string Name,
@@ -92,6 +88,33 @@ public record ProductDto(int Id, string ProductCode, string Name, string? Descri
     decimal Price, decimal CostPrice, int Quantity, int MinStock, string? Unit, string Status,
     int CategoryId, string CategoryName, int? SupplierId, string? SupplierName, DateTime CreatedAt, DateTime UpdatedAt);
 
+// Promotions
+public record PromotionDto(int Id, string Name, string Code, string? Description, string DiscountType,
+    decimal DiscountValue, DateTime StartsAt, DateTime EndsAt, bool IsActive, DateTime CreatedAt, DateTime UpdatedAt);
+
+public record SavePromotionRequest(
+    [Required(ErrorMessage = "Tên chương trình không được để trống")][StringLength(150)] string Name,
+    [Required(ErrorMessage = "Mã khuyến mãi không được để trống")][StringLength(40)] string Code,
+    [StringLength(500)] string? Description,
+    [Required][RegularExpression("^(percent|amount)$", ErrorMessage = "Kiểu giảm giá không hợp lệ")] string DiscountType,
+    [Range(0.01, 10000000000, ErrorMessage = "Giá trị giảm giá phải lớn hơn 0")] decimal DiscountValue,
+    DateTime StartsAt,
+    DateTime EndsAt,
+    bool IsActive);
+
+// Product reviews
+public record ProductReviewDto(int Id, string CustomerName, string? CustomerEmail, int Rating,
+    string Comment, bool IsApproved, DateTime CreatedAt, int ProductId, string ProductName, string ProductCode);
+
+public record CreateProductReviewRequest(
+    [Required(ErrorMessage = "Tên khách hàng không được để trống")][StringLength(100)] string CustomerName,
+    [EmailAddress(ErrorMessage = "Email không đúng định dạng")][StringLength(100)] string? CustomerEmail,
+    [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn sản phẩm") ] int ProductId,
+    [Range(1, 5, ErrorMessage = "Số sao phải từ 1 đến 5")] int Rating,
+    [Required(ErrorMessage = "Nội dung đánh giá không được để trống")][StringLength(1000)] string Comment);
+
+public record ModerateProductReviewRequest(bool IsApproved);
+
 public record CreateProductRequest(
     [Required(ErrorMessage = "Tên sản phẩm không được để trống")][StringLength(200, ErrorMessage = "Tên sản phẩm không vượt quá 200 ký tự")] string Name,
     [StringLength(1000, ErrorMessage = "Mô tả không vượt quá 1000 ký tự")] string? Description,
@@ -126,7 +149,8 @@ public record CreateImportRequest(
     [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn nhà cung cấp hợp lệ")] int SupplierId,
     [StringLength(500, ErrorMessage = "Ghi chú không quá 500 ký tự")] string? Note,
     [Required(ErrorMessage = "Danh sách sản phẩm nhập không được để trống")][MinLength(1, ErrorMessage = "Cần ít nhất 1 sản phẩm nhập")] List<CreateImportDetailRequest> Details,
-    [StringLength(20)] string Status = "completed" // draft hoặc completed
+    [RegularExpression("^(draft|completed)$", ErrorMessage = "Trạng thái phiếu nhập chỉ có thể là draft hoặc completed")]
+    string Status = "completed"
 );
 
 public record CreateImportDetailRequest(
@@ -136,8 +160,7 @@ public record CreateImportDetailRequest(
 
 public record UpdateImportRequest(
     [Range(1, int.MaxValue, ErrorMessage = "Mã nhà cung cấp không hợp lệ")] int? SupplierId,
-    [StringLength(500, ErrorMessage = "Ghi chú không quá 500 ký tự")] string? Note,
-    [StringLength(20, ErrorMessage = "Trạng thái không quá 20 ký tự")] string? Status);
+    [StringLength(500, ErrorMessage = "Ghi chú không quá 500 ký tự")] string? Note);
 
 // Order
 public record OrderDto(int Id, string OrderCode, int? CustomerId, string? CustomerName,
@@ -145,7 +168,7 @@ public record OrderDto(int Id, string OrderCode, int? CustomerId, string? Custom
     decimal PaidAmount, string PaymentMethod, string Status, string? Note, DateTime CreatedAt,
     List<OrderDetailDto> Details, List<PaymentDto> Payments);
 
-public record OrderDetailDto(int Id, int ProductId, string ProductName, int Quantity, decimal Price, decimal Total);
+public record OrderDetailDto(int Id, int ProductId, string ProductName, int Quantity, decimal Price, decimal Total, int ReturnedQuantity);
 
 public record CreateOrderRequest(
     int? CustomerId,
@@ -154,7 +177,8 @@ public record CreateOrderRequest(
     [StringLength(500, ErrorMessage = "Ghi chú không vượt quá 500 ký tự")] string? Note,
     [Required(ErrorMessage = "Chi tiết đơn hàng không được để trống")][MinLength(1, ErrorMessage = "Đơn hàng phải có ít nhất 1 sản phẩm")] List<CreateOrderDetailRequest> Details,
     [StringLength(100)] string? IdempotencyKey = null,
-    [StringLength(20)] string Status = "confirmed" // pending, confirmed, completed
+    [RegularExpression("^(pending|confirmed|completed)$", ErrorMessage = "Trạng thái đơn hàng không hợp lệ")]
+    [StringLength(20)] string Status = "confirmed"
 );
 
 public record CreateOrderDetailRequest(

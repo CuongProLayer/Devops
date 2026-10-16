@@ -2,6 +2,11 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+backend/uploads/
+
+# .NET build outputs
+backend/bin/
+backend/obj/
 
 # Logs
 logs
@@ -22,3 +27,8 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Sensitive configs (không đẩy credentials lên git)
+.env
+.env.production
+backend/appsettings.Development.json

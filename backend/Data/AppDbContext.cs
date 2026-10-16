@@ -17,6 +17,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<Promotion> Promotions => Set<Promotion>();
+    public DbSet<ProductReview> ProductReviews => Set<ProductReview>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,6 +41,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Product>().HasIndex(p => p.ProductCode).IsUnique();
         modelBuilder.Entity<Product>().Property(p => p.Price).HasColumnType("decimal(18,2)");
         modelBuilder.Entity<Product>().Property(p => p.CostPrice).HasColumnType("decimal(18,2)");
+
+        // Promotions and product reviews
+        modelBuilder.Entity<Promotion>().HasIndex(p => p.Code).IsUnique();
+        modelBuilder.Entity<Promotion>().Property(p => p.DiscountValue).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<ProductReview>()
+            .HasOne(r => r.Product)
+            .WithMany()
+            .HasForeignKey(r => r.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ProductReview>().HasIndex(r => r.ProductId);
 
         // ImportReceipt
         modelBuilder.Entity<ImportReceipt>().HasIndex(i => i.ReceiptCode).IsUnique();
@@ -103,7 +115,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             Id = 1,
             Username = "admin",
             Email = "admin@smartstock.vn",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
+            PasswordHash = "$2a$11$AZ3yy4QMKChWNuqVMla1bObFZu1uivXKwb3DH2o3YNYfMhoezZKYa",
             FullName = "Quản trị viên",
             Phone = "0900000001",
             Role = "admin",
@@ -117,7 +129,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             Id = 2,
             Username = "warehouse",
             Email = "warehouse@smartstock.vn",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("warehouse123"),
+            PasswordHash = "$2a$11$dgdh5FT7L.vuJg4aF.kN4e1N3VX1AqVb80LwQQ2AnMg4XrWt9Fv8.",
             FullName = "Trần Minh Kho",
             Phone = "0900000002",
             Role = "warehouse",
@@ -131,7 +143,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             Id = 3,
             Username = "staff",
             Email = "staff@smartstock.vn",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("staff123"),
+            PasswordHash = "$2a$11$NgkLu8aLGhR85Hx8dtzRp.DnTIy6atNsyuPygZCOjjKRk92QS8/hy",
             FullName = "Nguyễn Hà Sales",
             Phone = "0900000003",
             Role = "staff",

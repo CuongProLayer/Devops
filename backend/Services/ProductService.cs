@@ -9,8 +9,8 @@ public interface IProductService
 {
     Task<PagedResult<ProductDto>> GetAllAsync(string? search, int? categoryId, int? supplierId, string? status, int page, int pageSize);
     Task<ProductDto?> GetByIdAsync(int id);
-    Task<ProductDto> CreateAsync(CreateProductRequest request);
-    Task<ProductDto?> UpdateAsync(int id, UpdateProductRequest request);
+    Task<ProductDto> CreateAsync(int employeeId, CreateProductRequest request);
+    Task<ProductDto?> UpdateAsync(int id, UpdateProductRequest request, int employeeId);
     Task<bool> DeleteAsync(int id);
     Task<List<InventoryDto>> GetLowStockAsync();
     Task<List<InventoryDto>> GetOutOfStockAsync();
@@ -59,9 +59,10 @@ public class ProductService(AppDbContext db) : IProductService
         return p == null ? null : ToDto(p);
     }
 
-    public async Task<ProductDto> CreateAsync(CreateProductRequest request)
+    public async Task<ProductDto> CreateAsync(int employeeId, CreateProductRequest request)
     {
-        var code = $"PRD{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() % 100000:D5}";
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var code = $"PRD{Guid.NewGuid():N}";
         var product = new Product
         {
             ProductCode = code,
@@ -77,14 +78,32 @@ public class ProductService(AppDbContext db) : IProductService
         };
         db.Products.Add(product);
         await db.SaveChangesAsync();
+
+        if (product.Quantity > 0)
+        {
+            db.InventoryTransactions.Add(new InventoryTransaction
+            {
+                ProductId = product.Id,
+                Type = "ADJUSTMENT",
+                Quantity = product.Quantity,
+                BeforeQuantity = 0,
+                AfterQuantity = product.Quantity,
+                Note = "Tồn kho ban đầu khi tạo sản phẩm",
+                EmployeeId = employeeId,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await tx.CommitAsync();
         return (await GetByIdAsync(product.Id))!;
     }
 
-    public async Task<ProductDto?> UpdateAsync(int id, UpdateProductRequest request)
+    public async Task<ProductDto?> UpdateAsync(int id, UpdateProductRequest request, int employeeId)
     {
         var product = await db.Products.FindAsync(id);
         if (product == null) return null;
 
+        var previousQuantity = product.Quantity;
         product.Name = request.Name;
         product.Description = request.Description;
         product.Price = request.Price;
@@ -96,6 +115,20 @@ public class ProductService(AppDbContext db) : IProductService
         product.SupplierId = request.SupplierId;
         product.Status = request.Status;
         product.UpdatedAt = DateTime.UtcNow;
+
+        if (previousQuantity != request.Quantity)
+        {
+            db.InventoryTransactions.Add(new InventoryTransaction
+            {
+                ProductId = product.Id,
+                Type = "ADJUSTMENT",
+                Quantity = Math.Abs(request.Quantity - previousQuantity),
+                BeforeQuantity = previousQuantity,
+                AfterQuantity = request.Quantity,
+                Note = "Điều chỉnh tồn kho qua cập nhật sản phẩm",
+                EmployeeId = employeeId,
+            });
+        }
 
         await db.SaveChangesAsync();
         return await GetByIdAsync(id);

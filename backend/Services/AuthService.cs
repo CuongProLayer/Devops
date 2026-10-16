@@ -16,14 +16,15 @@ public interface IAuthService
     Task<bool> ChangePasswordAsync(int userId, ChangePasswordRequest request);
     Task<UserDto?> GetProfileAsync(int userId);
     Task<UserDto?> UpdateProfileAsync(int userId, UpdateProfileRequest request);
-    Task<ForgotPasswordResponse?> ForgotPasswordAsync(ForgotPasswordRequest request);
 }
 
 public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
 {
     public async Task<AuthResponse?> LoginAsync(LoginRequest request)
     {
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.IsActive);
+        var login = request.Email.Trim();
+        var user = await db.Users.FirstOrDefaultAsync(u =>
+            (u.Email == login || u.Username == login) && u.IsActive);
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return null;
 
@@ -76,23 +77,6 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
         u.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return new UserDto(u.Id, u.Username, u.Email, u.FullName, u.Phone, u.Role, u.IsActive, u.CreatedAt);
-    }
-
-    public async Task<ForgotPasswordResponse?> ForgotPasswordAsync(ForgotPasswordRequest request)
-    {
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.IsActive);
-        if (user == null)
-            return null;
-
-        var tempPassword = $"SS@{Random.Shared.Next(100000, 999999)}";
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(tempPassword);
-        user.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-
-        return new ForgotPasswordResponse(
-            "Mật khẩu mới đã được tạo thành công. Vui lòng dùng mật khẩu tạm để đăng nhập và đổi mật khẩu mới.",
-            tempPassword
-        );
     }
 
     private string GenerateToken(User user)

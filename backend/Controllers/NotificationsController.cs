@@ -21,32 +21,45 @@ public class NotificationsController(AppDbContext db) : ControllerBase
         if (int.TryParse(sub, out var parsedId))
             userId = parsedId;
 
-        // Auto-generate system notifications based on stock
-        var notifications = new List<NotificationDto>();
+        var stockAlerts = await db.Products.AsNoTracking()
+            .Where(p => p.Status == "active" && (p.Quantity == 0 || (p.Quantity > 0 && p.Quantity <= p.MinStock)))
+            .Select(p => new { p.Name, p.Quantity, IsOutOfStock = p.Quantity == 0 })
+            .ToListAsync();
 
-        var outOfStock = await db.Products.Where(p => p.Quantity == 0 && p.Status == "active").ToListAsync();
-        foreach (var p in outOfStock)
-            notifications.Add(new NotificationDto(0, "Hết hàng", $"{p.Name} đã hết hàng trong kho", "error", false, DateTime.UtcNow));
+        foreach (var product in stockAlerts)
+        {
+            var title = product.IsOutOfStock ? "Hết hàng" : "Sắp hết hàng";
+            var type = product.IsOutOfStock ? "error" : "warning";
+            var message = product.IsOutOfStock
+                ? $"{product.Name} đã hết hàng trong kho"
+                : $"{product.Name} chỉ còn {product.Quantity} sản phẩm trong kho";
+            var exists = await db.Notifications.AnyAsync(n =>
+                n.UserId == null && n.Title == title && n.Type == type && n.Message == message);
 
-        var lowStock = await db.Products.Where(p => p.Quantity > 0 && p.Quantity <= p.MinStock && p.Status == "active").ToListAsync();
-        foreach (var p in lowStock)
-            notifications.Add(new NotificationDto(0, "Sắp hết hàng", $"{p.Name} chỉ còn {p.Quantity} sản phẩm trong kho", "warning", false, DateTime.UtcNow));
+            if (!exists)
+                db.Notifications.Add(new Notification { Title = title, Message = message, Type = type });
+        }
 
-        var dbNotifications = await db.Notifications
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync();
+
+        var notifications = await db.Notifications
             .Where(n => n.UserId == null || (userId.HasValue && n.UserId == userId.Value))
             .OrderByDescending(n => n.CreatedAt)
             .Take(30)
             .Select(n => new NotificationDto(n.Id, n.Title, n.Message, n.Type, n.IsRead, n.CreatedAt))
             .ToListAsync();
 
-        notifications.AddRange(dbNotifications);
         return Ok(notifications.OrderByDescending(n => n.CreatedAt));
     }
 
     [HttpPost("{id}/read")]
     public async Task<IActionResult> MarkRead(int id)
     {
-        var n = await db.Notifications.FindAsync(id);
+        var sub = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int? userId = int.TryParse(sub, out var parsedId) ? parsedId : null;
+        var n = await db.Notifications.FirstOrDefaultAsync(n =>
+            n.Id == id && (n.UserId == null || (userId.HasValue && n.UserId == userId.Value)));
         if (n == null) return NotFound(new { message = "Không tìm thấy thông báo" });
         n.IsRead = true;
         await db.SaveChangesAsync();

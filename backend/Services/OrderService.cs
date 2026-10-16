@@ -83,7 +83,9 @@ public class OrderService(AppDbContext db) : IOrderService
             var code = $"DH{DateTime.Now:yyyyMMdd}{(await db.Orders.CountAsync()) + 1:D4}";
             decimal totalAmount = 0;
 
-            var targetStatus = string.IsNullOrWhiteSpace(request.Status) ? "confirmed" : request.Status.ToLower();
+            var targetStatus = string.IsNullOrWhiteSpace(request.Status) ? "confirmed" : request.Status.Trim().ToLowerInvariant();
+            if (targetStatus is not ("pending" or "confirmed" or "completed"))
+                throw new InvalidOperationException("Trạng thái đơn hàng không hợp lệ.");
             var shouldDeductStock = targetStatus is "confirmed" or "completed";
 
             var order = new Order
@@ -102,10 +104,11 @@ public class OrderService(AppDbContext db) : IOrderService
 
             foreach (var detail in request.Details)
             {
-                var product = await db.Products.FindAsync(detail.ProductId)
+                var product = await db.Products.FirstOrDefaultAsync(p =>
+                    p.Id == detail.ProductId && !p.IsDeleted && p.Status == "active")
                     ?? throw new InvalidOperationException($"Không tìm thấy sản phẩm #{detail.ProductId}");
 
-                var lineTotal = detail.Quantity * detail.Price;
+                var lineTotal = detail.Quantity * product.Price;
                 totalAmount += lineTotal;
 
                 db.OrderDetails.Add(new OrderDetail
@@ -113,7 +116,7 @@ public class OrderService(AppDbContext db) : IOrderService
                     OrderId = order.Id,
                     ProductId = detail.ProductId,
                     Quantity = detail.Quantity,
-                    Price = detail.Price,
+                    Price = product.Price,
                     Total = lineTotal
                 });
 
@@ -155,6 +158,17 @@ public class OrderService(AppDbContext db) : IOrderService
             if (targetStatus == "completed")
             {
                 order.PaidAmount = order.FinalAmount;
+                if (order.FinalAmount > 0)
+                {
+                    db.Payments.Add(new Payment
+                    {
+                        OrderId = order.Id,
+                        Amount = order.FinalAmount,
+                        PaymentMethod = request.PaymentMethod,
+                        Note = "Thanh toán khi tạo đơn hoàn tất",
+                        EmployeeId = employeeId,
+                    });
+                }
             }
 
             await db.SaveChangesAsync();
@@ -186,6 +200,15 @@ public class OrderService(AppDbContext db) : IOrderService
         await using var tx = await db.Database.BeginTransactionAsync();
         try
         {
+            var claimed = await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Orders SET UpdatedAt = {DateTime.UtcNow} WHERE Id = {id} AND Status = 'pending' AND IsDeleted = 0");
+            if (claimed == 0)
+            {
+                if (!await db.Orders.AnyAsync(order => order.Id == id && !order.IsDeleted))
+                    throw new KeyNotFoundException($"Không tìm thấy đơn hàng #{id}");
+                throw new InvalidOperationException("Đơn hàng không còn ở trạng thái chờ xác nhận.");
+            }
+
             var order = await db.Orders
                 .Include(o => o.OrderDetails).ThenInclude(d => d.Product)
                 .FirstOrDefaultAsync(o => o.Id == id && !o.IsDeleted)
@@ -253,17 +276,23 @@ public class OrderService(AppDbContext db) : IOrderService
 
     public async Task<OrderDto?> UpdateStatusAsync(int id, string status, int employeeId)
     {
-        var normalized = status.Trim().ToLower();
+        if (string.IsNullOrWhiteSpace(status))
+            throw new InvalidOperationException("Trạng thái đơn hàng không được để trống.");
+
+        var normalized = status.Trim().ToLowerInvariant();
         if (normalized == "confirmed")
             return await ConfirmAsync(id, employeeId);
         if (normalized == "cancelled")
         {
-            await CancelAsync(id, employeeId);
-            return await GetByIdAsync(id);
+            return await CancelAsync(id, employeeId) ? await GetByIdAsync(id) : null;
         }
+        if (normalized != "completed")
+            throw new InvalidOperationException("Chỉ có thể chuyển đơn sang confirmed, completed hoặc cancelled.");
 
         var order = await db.Orders.FindAsync(id);
         if (order == null || order.IsDeleted) return null;
+        if (order.Status != "confirmed")
+            throw new InvalidOperationException("Chỉ đơn đã xác nhận mới có thể hoàn tất.");
 
         order.Status = normalized;
         order.UpdatedAt = DateTime.UtcNow;
@@ -298,9 +327,20 @@ public class OrderService(AppDbContext db) : IOrderService
 
             if (order.Status == "returned")
                 throw new InvalidOperationException("Đơn hàng này đã được hoàn trả, không thể hủy.");
+            if (order.Status == "partially_returned")
+                throw new InvalidOperationException("Đơn hàng đã hoàn một phần; hãy hoàn tiếp số lượng còn lại thay vì hủy.");
+
+            if (order.Status is not ("pending" or "confirmed" or "completed"))
+                throw new InvalidOperationException("Trạng thái hiện tại không thể hủy.");
 
             // Chỉ hoàn kho nếu đơn trước đó ĐÃ trừ kho (confirmed hoặc completed)
             var wasStockDeducted = order.Status is "confirmed" or "completed";
+            var previousStatus = order.Status;
+            var claimed = await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Orders SET UpdatedAt = {DateTime.UtcNow} WHERE Id = {orderId} AND Status = {previousStatus} AND IsDeleted = 0");
+            if (claimed == 0)
+                throw new InvalidOperationException("Trạng thái đơn hàng vừa được thay đổi bởi một thao tác khác.");
+            await db.Entry(order).ReloadAsync();
 
             if (wasStockDeducted)
             {
@@ -339,6 +379,19 @@ public class OrderService(AppDbContext db) : IOrderService
                 }
             }
 
+            if (order.PaidAmount > 0)
+            {
+                db.Payments.Add(new Payment
+                {
+                    OrderId = order.Id,
+                    Amount = -order.PaidAmount,
+                    PaymentMethod = "refund",
+                    Note = $"Hoàn tiền do hủy đơn {order.OrderCode}",
+                    EmployeeId = employeeId,
+                });
+                order.PaidAmount = 0;
+            }
+
             order.Status = "cancelled";
             order.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync();
@@ -358,6 +411,11 @@ public class OrderService(AppDbContext db) : IOrderService
         await using var tx = await db.Database.BeginTransactionAsync();
         try
         {
+            var locked = await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Orders SET UpdatedAt = {DateTime.UtcNow} WHERE Id = {orderId} AND IsDeleted = 0");
+            if (locked == 0)
+                throw new KeyNotFoundException($"Không tìm thấy đơn hàng #{orderId}");
+
             var order = await db.Orders
                 .Include(o => o.Customer)
                 .Include(o => o.Employee)
@@ -366,82 +424,97 @@ public class OrderService(AppDbContext db) : IOrderService
                 .FirstOrDefaultAsync(o => o.Id == orderId && !o.IsDeleted)
                 ?? throw new KeyNotFoundException($"Không tìm thấy đơn hàng #{orderId}");
 
-            if (order.Status == "cancelled")
-                throw new InvalidOperationException("Đơn hàng đã bị hủy, không thể hoàn trả.");
-
             if (order.Status == "returned")
-                throw new InvalidOperationException("Đơn hàng này đã được xử lý hoàn trả trước đó.");
+                throw new InvalidOperationException("Đơn hàng này đã được hoàn trả toàn bộ.");
+            if (order.Status is not ("confirmed" or "completed" or "partially_returned"))
+                throw new InvalidOperationException("Chỉ đơn đã xác nhận hoặc hoàn tất mới có thể hoàn trả.");
 
             var reason = string.IsNullOrWhiteSpace(request?.Reason) ? "Khách trả hàng" : request.Reason.Trim();
+            var requested = request?.Details is { Count: > 0 }
+                ? request.Details
+                    .GroupBy(detail => detail.ProductId)
+                    .Select(group => new ReturnOrderDetailRequest(group.Key, group.Sum(detail => detail.Quantity)))
+                    .ToList()
+                : order.OrderDetails
+                    .Where(detail => detail.ReturnedQuantity < detail.Quantity)
+                    .GroupBy(detail => detail.ProductId)
+                    .Select(group => new ReturnOrderDetailRequest(group.Key, group.Sum(detail => detail.Quantity - detail.ReturnedQuantity)))
+                    .ToList();
 
-            if (request?.Details != null && request.Details.Count > 0)
+            if (requested.Count == 0)
+                throw new InvalidOperationException("Không còn sản phẩm nào có thể hoàn trả.");
+
+            var returnedBaseBefore = order.OrderDetails.Sum(detail => detail.Price * detail.ReturnedQuantity);
+            var quantitiesByProduct = new Dictionary<int, int>();
+            foreach (var returnItem in requested)
             {
-                foreach (var retItem in request.Details)
+                var productDetails = order.OrderDetails.Where(detail => detail.ProductId == returnItem.ProductId).OrderBy(detail => detail.Id).ToList();
+                var availableQuantity = productDetails.Sum(detail => detail.Quantity - detail.ReturnedQuantity);
+                if (productDetails.Count == 0)
+                    throw new InvalidOperationException($"Sản phẩm #{returnItem.ProductId} không có trong đơn hàng {order.OrderCode}");
+                if (returnItem.Quantity > availableQuantity)
+                    throw new InvalidOperationException($"Số lượng hoàn vượt quá số lượng còn lại của sản phẩm '{productDetails[0].Product.Name}' ({availableQuantity}).");
+
+                var quantityToAllocate = returnItem.Quantity;
+                foreach (var detail in productDetails)
                 {
-                    var detail = order.OrderDetails.FirstOrDefault(d => d.ProductId == retItem.ProductId)
-                        ?? throw new InvalidOperationException($"Sản phẩm #{retItem.ProductId} không có trong đơn hàng {order.OrderCode}");
-
-                    if (retItem.Quantity > detail.Quantity)
-                        throw new InvalidOperationException($"Số lượng hoàn trả của sản phẩm '{detail.Product?.Name}' ({retItem.Quantity}) vượt quá số lượng đã mua ({detail.Quantity})");
-
-                    var product = await db.Products.FindAsync(retItem.ProductId);
-                    if (product != null)
-                    {
-                        var before = product.Quantity;
-                        product.Quantity += retItem.Quantity;
-                        product.UpdatedAt = DateTime.UtcNow;
-
-                        db.InventoryTransactions.Add(new InventoryTransaction
-                        {
-                            ProductId = product.Id,
-                            Type = "RETURN",
-                            Quantity = retItem.Quantity,
-                            BeforeQuantity = before,
-                            AfterQuantity = product.Quantity,
-                            ReferenceId = order.Id,
-                            Note = $"Hoàn hàng {order.OrderCode}: {reason}",
-                            EmployeeId = employeeId
-                        });
-                    }
+                    var returnedNow = Math.Min(quantityToAllocate, detail.Quantity - detail.ReturnedQuantity);
+                    detail.ReturnedQuantity += returnedNow;
+                    quantityToAllocate -= returnedNow;
+                    if (quantityToAllocate == 0) break;
                 }
-            }
-            else
-            {
-                foreach (var detail in order.OrderDetails)
-                {
-                    var product = await db.Products.FindAsync(detail.ProductId);
-                    if (product != null)
-                    {
-                        var before = product.Quantity;
-                        product.Quantity += detail.Quantity;
-                        product.UpdatedAt = DateTime.UtcNow;
-
-                        db.InventoryTransactions.Add(new InventoryTransaction
-                        {
-                            ProductId = detail.ProductId,
-                            Type = "RETURN",
-                            Quantity = detail.Quantity,
-                            BeforeQuantity = before,
-                            AfterQuantity = product.Quantity,
-                            ReferenceId = order.Id,
-                            Note = $"Hoàn hàng toàn bộ {order.OrderCode}: {reason}",
-                            EmployeeId = employeeId
-                        });
-                    }
-                }
+                quantitiesByProduct[returnItem.ProductId] = returnItem.Quantity;
             }
 
-            if (order.CustomerId.HasValue)
+            foreach (var (productId, quantity) in quantitiesByProduct)
             {
-                var customer = await db.Customers.FindAsync(order.CustomerId.Value);
-                if (customer != null)
+                var product = await db.Products.FindAsync(productId)
+                    ?? throw new InvalidOperationException($"Sản phẩm #{productId} không còn tồn tại.");
+                await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"UPDATE Products SET Quantity = Quantity + {quantity}, UpdatedAt = {DateTime.UtcNow} WHERE Id = {productId}");
+                await db.Entry(product).ReloadAsync();
+                var afterQuantity = product.Quantity;
+                db.InventoryTransactions.Add(new InventoryTransaction
                 {
-                    customer.TotalPurchase = Math.Max(0, customer.TotalPurchase - order.FinalAmount);
-                    customer.UpdatedAt = DateTime.UtcNow;
-                }
+                    ProductId = product.Id,
+                    Type = "RETURN",
+                    Quantity = quantity,
+                    BeforeQuantity = afterQuantity - quantity,
+                    AfterQuantity = afterQuantity,
+                    ReferenceId = order.Id,
+                    Note = $"Hoàn hàng {order.OrderCode}: {reason}",
+                    EmployeeId = employeeId
+                });
             }
 
-            order.Status = "returned";
+            var returnedBaseAfter = order.OrderDetails.Sum(detail => detail.Price * detail.ReturnedQuantity);
+            var discountRatio = order.TotalAmount > 0 ? order.FinalAmount / order.TotalAmount : 0m;
+            var previousRefund = decimal.Round(returnedBaseBefore * discountRatio, 2, MidpointRounding.AwayFromZero);
+            var totalRefund = decimal.Round(returnedBaseAfter * discountRatio, 2, MidpointRounding.AwayFromZero);
+            var purchaseReduction = Math.Max(0m, totalRefund - previousRefund);
+            var cashRefund = Math.Min(order.PaidAmount, purchaseReduction);
+
+            if (order.CustomerId.HasValue && purchaseReduction > 0)
+            {
+                await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"UPDATE Customers SET TotalPurchase = CASE WHEN TotalPurchase > {purchaseReduction} THEN TotalPurchase - {purchaseReduction} ELSE 0 END, UpdatedAt = {DateTime.UtcNow} WHERE Id = {order.CustomerId.Value}");
+            }
+
+            order.PaidAmount -= cashRefund;
+            if (cashRefund > 0)
+            {
+                db.Payments.Add(new Payment
+                {
+                    OrderId = order.Id,
+                    Amount = -cashRefund,
+                    PaymentMethod = "refund",
+                    Note = $"Hoàn tiền theo hoàn hàng: {reason}",
+                    EmployeeId = employeeId,
+                });
+            }
+            order.Status = order.OrderDetails.All(detail => detail.ReturnedQuantity >= detail.Quantity)
+                ? "returned"
+                : "partially_returned";
             order.Note = string.IsNullOrWhiteSpace(order.Note)
                 ? $"[Hoàn hàng]: {reason}"
                 : $"{order.Note} | [Hoàn hàng]: {reason}";
@@ -463,7 +536,7 @@ public class OrderService(AppDbContext db) : IOrderService
         o.Id, o.OrderCode, o.CustomerId, o.Customer?.Name,
         o.EmployeeId, o.Employee?.FullName ?? "", o.TotalAmount, o.Discount, o.FinalAmount,
         o.PaidAmount, o.PaymentMethod, o.Status, o.Note, o.CreatedAt,
-        o.OrderDetails.Select(d => new OrderDetailDto(d.Id, d.ProductId, d.Product?.Name ?? "", d.Quantity, d.Price, d.Total)).ToList(),
+        o.OrderDetails.Select(d => new OrderDetailDto(d.Id, d.ProductId, d.Product?.Name ?? "", d.Quantity, d.Price, d.Total, d.ReturnedQuantity)).ToList(),
         o.Payments.Select(p => new PaymentDto(p.Id, p.OrderId, o.OrderCode, p.Amount, p.PaymentMethod, p.TransactionCode, p.Note, p.EmployeeId, p.Employee?.FullName ?? "", p.CreatedAt)).ToList()
     );
 }

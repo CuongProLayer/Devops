@@ -45,13 +45,16 @@ public class ImportService(AppDbContext db) : IImportService
 
     public async Task<ImportReceiptDto> CreateAsync(int employeeId, CreateImportRequest request)
     {
+        var targetStatus = request.Status.Trim().ToLowerInvariant();
+        if (targetStatus is not ("draft" or "completed"))
+            throw new InvalidOperationException("Trạng thái phiếu nhập chỉ có thể là draft hoặc completed.");
+
         await using var tx = await db.Database.BeginTransactionAsync();
         try
         {
             var code = $"NK{DateTime.Now:yyyyMMdd}{(await db.ImportReceipts.CountAsync()) + 1:D4}";
             decimal total = 0;
 
-            var targetStatus = string.IsNullOrWhiteSpace(request.Status) ? "completed" : request.Status.ToLower();
             var shouldAddStock = targetStatus is "completed" or "confirmed";
 
             var receipt = new ImportReceipt
@@ -171,6 +174,8 @@ public class ImportService(AppDbContext db) : IImportService
     {
         var receipt = await db.ImportReceipts.FindAsync(id);
         if (receipt == null) return null;
+        if (receipt.Status != "draft")
+            throw new InvalidOperationException("Chỉ có thể sửa thông tin phiếu nhập ở trạng thái nháp.");
 
         if (request.SupplierId.HasValue)
         {
@@ -182,9 +187,6 @@ public class ImportService(AppDbContext db) : IImportService
 
         if (request.Note != null)
             receipt.Note = request.Note;
-
-        if (!string.IsNullOrWhiteSpace(request.Status))
-            receipt.Status = request.Status;
 
         receipt.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();

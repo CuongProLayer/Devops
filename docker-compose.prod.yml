@@ -1,0 +1,59 @@
+services:
+
+  # ──────────────────────────────────────────
+  # SQL Server Database
+  # ──────────────────────────────────────────
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: smartstock-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${DB_SA_PASSWORD}"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    restart: always
+    networks:
+      - app-network
+
+  # ──────────────────────────────────────────
+  # Backend (.NET 10 API)
+  # ──────────────────────────────────────────
+  smartstock-backend:
+    image: docker.io/${DOCKER_USER}/smartstock-backend:latest
+    container_name: smartstock-backend
+    restart: always
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "${DB_CONNECTION_STRING}"
+    volumes:
+      - uploads-data:/app/uploads
+    depends_on:
+      - sqlserver
+    networks:
+      - app-network
+
+  # ──────────────────────────────────────────
+  # Frontend (React + Nginx)
+  # ──────────────────────────────────────────
+  smartstock-frontend:
+    image: docker.io/${DOCKER_USER}/smartstock-frontend:latest
+    container_name: smartstock-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - smartstock-backend
+    networks:
+      - app-network
+
+volumes:
+  sqlserver-data:
+  uploads-data:
+
+networks:
+  app-network:
+    driver: bridge

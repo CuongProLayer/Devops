@@ -1,106 +1,3101 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, ArrowUpRight, Bell, Check, ChevronDown, ChevronRight, Download, Filter, Heart, Moon, Package, Plus, QrCode, Search, ShoppingCart, Star, Sun, TrendingUp, Upload, Users, Warehouse, X } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Bell,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Download,
+  Filter,
+  Heart,
+  Moon,
+  Package,
+  Plus,
+  QrCode,
+  Search,
+  ShoppingCart,
+  Star,
+  Sun,
+  TrendingUp,
+  Upload,
+  Users,
+  Warehouse,
+  X,
+  RefreshCw,
+  Trash2,
+  Edit,
+} from 'lucide-react'
+import { api, formatVND, formatDate } from './api'
 
 const text = {
-  welcome: '\u0110\u0103ng nh\u1eadp v\u00e0o t\u00e0i kho\u1ea3n',
-  welcomeCopy: 'Nh\u1eadp th\u00f4ng tin \u0111\u1ec3 ti\u1ebfp t\u1ee5c qu\u1ea3n l\u00fd SmartStock.',
-  heroTitle: 'V\u1eadn h\u00e0nh c\u1eeda h\u00e0ng',
-  heroAccent: 'nh\u1eb9 nh\u00e0ng h\u01a1n.',
-  heroCopy: 'M\u1ecdi s\u1ea3n ph\u1ea9m, \u0111\u01a1n h\u00e0ng v\u00e0 con s\u1ed1 quan tr\u1ecdng \u0111\u1ec1u n\u1eb1m trong t\u1ea7m m\u1eaft b\u1ea1n.',
+  welcome: 'Đăng nhập vào tài khoản',
+  welcomeCopy: 'Nhập thông tin tài khoản SmartStock để quản lý hệ thống.',
+  heroTitle: 'Vận hành cửa hàng',
+  heroAccent: 'nhẹ nhàng hơn.',
+  heroCopy: 'Mọi sản phẩm, đơn hàng và số liệu kho đều kết nối trực tiếp với Backend API.',
 }
 
+// ----------------------------------------------------
+// AUTH: LOGIN & RECOVERY
+// ----------------------------------------------------
 export function CleanLogin({ onLogin }) {
   const [screen, setScreen] = useState('login')
+  const [email, setEmail] = useState('admin@smartstock.vn')
+  const [password, setPassword] = useState('admin123')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
   if (screen !== 'login') return <CleanRecovery screen={screen} onBack={() => setScreen('login')} />
-  return <main className="login-page"><div className="login-art"><div className="login-art-top"><div className="brand-mark">&#10022;</div><div className="brand-name">smart<span>stock</span></div></div><div className="login-art-copy"><div className="eyebrow">INVENTORY OS</div><h1>{text.heroTitle}<br /><em>{text.heroAccent}</em></h1><p>{text.heroCopy}</p><div className="clean-login-stat"><TrendingUp size={16} /><strong>+12,8%</strong><span>Doanh thu tháng này</span></div></div><div className="login-art-footer"><span>© 2024 SmartStock</span><span>Hệ thống quản lý kho và bán hàng</span></div></div><div className="login-form-wrap"><form className="login-form" onSubmit={(event) => { event.preventDefault(); onLogin('admin') }}><div className="mobile-brand"><div className="brand-mark">&#10022;</div><div className="brand-name">smart<span>stock</span></div></div><div className="login-heading"><div className="eyebrow">CHÀO MỪNG TRỞ LẠI</div><h2>{text.welcome}</h2><p>{text.welcomeCopy}</p></div><label>Email hoặc tên đăng nhập<input defaultValue="admin@smartstock.vn" /></label><label>Mật khẩu<input type="password" defaultValue="smartstock" /></label><div className="login-options"><label className="check-label"><input type="checkbox" defaultChecked /> Ghi nhớ đăng nhập</label><button type="button" className="forgot-button" onClick={() => setScreen('forgot')}>Quên mật khẩu?</button></div><button className="button primary login-button" type="submit">Đăng nhập <ArrowUpRight size={17} /></button><div className="login-note"><span /> Bảo mật với mã hóa SSL 256-bit</div><div className="demo-role-row"><span>Demo nhanh:</span><button type="button" onClick={() => onLogin('customer')}>Khách hàng</button><button type="button" onClick={() => onLogin('staff')}>Staff</button><button type="button" onClick={() => setScreen('register')}>Đăng ký</button></div></form></div></main>
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const res = await api.login(email.trim(), password)
+      onLogin(res.role, res)
+    } catch (err) {
+      setError(err.message || 'Email hoặc mật khẩu không chính xác')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fillAndLogin = async (demoEmail, demoPass, roleName) => {
+    if (roleName === 'customer') {
+      onLogin('customer', { fullName: 'Khách mua hàng', role: 'customer' })
+      return
+    }
+    setEmail(demoEmail)
+    setPassword(demoPass)
+    setLoading(true)
+    setError('')
+    try {
+      const res = await api.login(demoEmail, demoPass)
+      onLogin(res.role, res)
+    } catch (err) {
+      setError(err.message || 'Không thể đăng nhập tài khoản demo')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <main className="login-page">
+      <div className="login-art">
+        <div className="login-art-top">
+          <div className="brand-mark">&#10022;</div>
+          <div className="brand-name">smart<span>stock</span></div>
+        </div>
+        <div className="login-art-copy">
+          <div className="eyebrow">INVENTORY OS &bull; LIVE CONNECTED</div>
+          <h1>{text.heroTitle}<br /><em>{text.heroAccent}</em></h1>
+          <p>{text.heroCopy}</p>
+          <div className="clean-login-stat">
+            <TrendingUp size={16} />
+            <strong>REST API v1</strong>
+            <span>Đã kết nối Database SQL Server</span>
+          </div>
+        </div>
+        <div className="login-art-footer">
+          <span>&copy; 2026 SmartStock</span>
+          <span>Hệ thống quản lý kho &amp; bán hàng toàn diện</span>
+        </div>
+      </div>
+
+      <div className="login-form-wrap">
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="mobile-brand">
+            <div className="brand-mark">&#10022;</div>
+            <div className="brand-name">smart<span>stock</span></div>
+          </div>
+          <div className="login-heading">
+            <div className="eyebrow">CHÀO MỪNG TRỞ LẠI</div>
+            <h2>{text.welcome}</h2>
+            <p>{text.welcomeCopy}</p>
+          </div>
+
+          {error && <div className="login-error-badge">{error}</div>}
+
+          <label>
+            Email hoặc tên đăng nhập
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@smartstock.vn"
+              required
+            />
+          </label>
+
+          <label>
+            Mật khẩu
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="admin123"
+              required
+            />
+          </label>
+
+          <div className="login-options">
+            <label className="check-label">
+              <input type="checkbox" defaultChecked /> Ghi nhớ đăng nhập
+            </label>
+            <button type="button" className="forgot-button" onClick={() => setScreen('forgot')}>
+              Quên mật khẩu?
+            </button>
+          </div>
+
+          <button className="button primary login-button" type="submit" disabled={loading}>
+            {loading ? 'Đang xác thực...' : 'Đăng nhập'} <ArrowUpRight size={17} />
+          </button>
+
+          <div className="login-note">
+            <span /> Bảo mật JWT &amp; mã hóa mật khẩu BCrypt
+          </div>
+
+          <div className="demo-role-row">
+            <span>Đăng nhập nhanh:</span>
+            <button type="button" onClick={() => fillAndLogin('admin@smartstock.vn', 'admin123', 'admin')}>
+              Admin
+            </button>
+            <button type="button" onClick={() => fillAndLogin('staff@smartstock.vn', 'staff123', 'staff')}>
+              Staff
+            </button>
+            <button type="button" onClick={() => fillAndLogin('warehouse@smartstock.vn', 'warehouse123', 'warehouse')}>
+              Kho
+            </button>
+            <button type="button" onClick={() => fillAndLogin('', '', 'customer')}>
+              Khách hàng
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+  )
 }
 
-function CleanRecovery({ screen, onBack }) { const register = screen === 'register'; const reset = screen === 'reset'; return <main className="login-page auth-secondary"><div className="login-art"><div className="login-art-top"><div className="brand-mark">&#10022;</div><div className="brand-name">smart<span>stock</span></div></div><div className="login-art-copy"><div className="eyebrow">SMARTSTOCK ACCOUNT</div><h1>{register ? 'B\u1eaft \u0111\u1ea7u h\u00e0nh tr\u00ecnh' : 'L\u1ea5y l\u1ea1i quy\u1ec1n'}<br /><em>{register ? 'th\u00f4ng minh h\u01a1n.' : 'truy c\u1eadp.'}</em></h1></div></div><div className="login-form-wrap"><form className="login-form" onSubmit={(event) => { event.preventDefault(); onBack() }}><button type="button" className="back-auth" onClick={onBack}>← Quay lại đăng nhập</button><div className="login-heading"><div className="eyebrow">{register ? 'TẠO TÀI KHOẢN' : reset ? 'ĐẶT LẠI MẬT KHẨU' : 'KHÔI PHỤC TÀI KHOẢN'}</div><h2>{register ? 'Đăng ký tài khoản' : reset ? 'Mật khẩu mới' : 'Quên mật khẩu?'}</h2><p>{register ? 'Tạo tài khoản miễn phí để bắt đầu mua sắm.' : 'Nhập email, chúng tôi sẽ gửi liên kết khôi phục.'}</p></div>{register && <label>Họ và tên<input placeholder="Nguyễn Minh Anh" /></label>}<label>Email<input type="email" placeholder="you@example.com" /></label>{(register || reset) && <label>Mật khẩu mới<input type="password" placeholder="••••••••" /></label>}<button className="button primary login-button" type="submit">{register ? 'Tạo tài khoản' : reset ? 'Lưu mật khẩu mới' : 'Gửi liên kết khôi phục'} <ArrowUpRight size={17} /></button></form></div></main> }
+function CleanRecovery({ screen, onBack }) {
+  const register = screen === 'register'
+  const [formData, setFormData] = useState({ username: '', email: '', password: '', fullName: '', phone: '' })
+  const [msg, setMsg] = useState('')
+  const [messageType, setMessageType] = useState('success')
+  const [loading, setLoading] = useState(false)
 
-export function CleanStorefront({ onLogout }) { const [page, setPage] = useState('home'); const [search, setSearch] = useState(''); const [cart, setCart] = useState([]); const [liked, setLiked] = useState([]); const [dark, setDark] = useState(() => localStorage.getItem('smartstock-theme') === 'dark'); const [toast, setToast] = useState(''); const visible = cleanProducts.filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(search.toLowerCase())); useEffect(() => { localStorage.setItem('smartstock-theme', dark ? 'dark' : 'light') }, [dark]); const add = (item) => { setCart((items) => items.some((entry) => entry.sku === item.sku) ? items : [...items, item]); setToast('Đã thêm sản phẩm vào giỏ hàng'); setTimeout(() => setToast(''), 2200) }; const toggle = (item) => setLiked((items) => items.some((entry) => entry.sku === item.sku) ? items.filter((entry) => entry.sku !== item.sku) : [...items, item]); return <div className={`storefront ${dark ? 'storefront-dark' : ''}`}><header className="store-header"><button className="store-brand" onClick={() => setPage('home')}><span className="brand-mark">&#10022;</span><span className="brand-name">smart<span>stock</span></span></button><nav className="store-nav"><button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>Trang chủ</button><button className={page === 'products' ? 'active' : ''} onClick={() => setPage('products')}>Sản phẩm</button><button onClick={() => setPage('categories')}>Danh mục</button><button onClick={() => setPage('about')}>Về SmartStock</button></nav><div className="store-actions"><div className="store-search"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage('products') }} placeholder="Tìm kiếm sản phẩm..." /></div><button className="store-icon" onClick={() => setDark(!dark)} title="Đổi giao diện">{dark ? '☀' : '☾'}</button><button className="store-icon" onClick={() => setPage('wishlist')}><Heart size={19} fill={liked.length ? 'currentColor' : 'none'} /><i>{liked.length}</i></button><button className="store-icon" onClick={() => setPage('cart')}><ShoppingCart size={19} /><i>{cart.length}</i></button><button className="store-account" onClick={onLogout}><span>C</span><ChevronDown size={14} /></button></div></header><main className="store-main">{page === 'home' && <CleanHome onNavigate={setPage} onAdd={add} onToggle={toggle} liked={liked} />} {page === 'products' && <CleanProducts items={visible} onAdd={add} onToggle={toggle} liked={liked} search={search} />} {page === 'categories' && <CleanCategories onSelect={(category) => { setSearch(category); setPage('products') }} />} {page === 'cart' && <CleanCart items={cart} onNavigate={setPage} />} {page === 'wishlist' && <CleanProducts items={liked} onAdd={add} onToggle={toggle} liked={liked} />} {page === 'about' && <section className="about-view"><div className="about-copy"><span className="section-kicker">THE SMARTSTOCK STORY</span><h2>Công nghệ tốt hơn,<br /><em>ngày thường nhẹ hơn.</em></h2><p>SmartStock chọn lọc sản phẩm đáng tin, tư vấn thật và giao hàng nhanh.</p></div></section>}</main>{toast && <div className="store-toast"><Check size={15} />{toast}</div>}</div> }
+  if (!register) {
+    return (
+      <main className="login-page auth-secondary">
+        <div className="login-art">
+          <div className="login-art-top">
+            <div className="brand-mark">&#10022;</div>
+            <div className="brand-name">smart<span>stock</span></div>
+          </div>
+          <div className="login-art-copy">
+            <div className="eyebrow">SMARTSTOCK ACCOUNT</div>
+            <h1>Lấy lại quyền<br /><em>truy cập.</em></h1>
+          </div>
+        </div>
+        <div className="login-form-wrap">
+          <section className="login-form">
+            <button type="button" className="back-auth" onClick={onBack}>&larr; Quay lại đăng nhập</button>
+            <div className="login-heading">
+              <div className="eyebrow">KHÔI PHỤC TÀI KHOẢN</div>
+              <h2>Liên hệ quản trị viên</h2>
+              <p>Khôi phục qua email chưa được cấu hình. Quản trị viên có thể hỗ trợ đặt lại mật khẩu.</p>
+            </div>
+          </section>
+        </div>
+      </main>
+    )
+  }
 
-const cleanProducts = [{ name: 'iPhone 15 Pro Max', category: 'Điện thoại', price: '29.990.000đ', stock: 18, color: 'midnight', sku: 'ip15' }, { name: 'MacBook Air M3 15 inch', category: 'Laptop', price: '32.490.000đ', stock: 7, color: 'silver', sku: 'macbook' }, { name: 'Sony WH-1000XM5', category: 'Phụ kiện', price: '7.490.000đ', stock: 24, color: 'black', sku: 'sony' }, { name: 'iPad Pro M4 11 inch', category: 'Tablet', price: '21.990.000đ', stock: 13, color: 'space', sku: 'ipad' }]
-function CleanHome({ onNavigate, onAdd, onToggle, liked }) { return <><section className="store-hero"><div><span className="hero-kicker">CÔNG NGHỆ CHO NHỊP SỐNG HIỆN ĐẠI</span><h1>Đồ công nghệ<br /><em>đúng gu của bạn.</em></h1><p>Khám phá những sản phẩm được tuyển chọn kỹ lưỡng, giá tốt và giao nhanh mỗi ngày.</p><button className="store-primary" onClick={() => onNavigate('products')}>Khám phá sản phẩm <ChevronRight size={17} /></button></div><div className="hero-device"><div className="device-card device-laptop"><div className="device-screen"><span>SMART</span><strong>stock</strong></div></div><div className="device-card device-phone"><div className="phone-screen"><span>09:41</span><b>✦</b></div></div></div></section><section className="store-section"><div className="store-section-head"><div><span className="section-kicker">ĐƯỢC YÊU THÍCH</span><h2>Sản phẩm nổi bật</h2></div><button className="store-link" onClick={() => onNavigate('products')}>Xem tất cả <ArrowUpRight size={15} /></button></div><div className="store-product-grid">{cleanProducts.map((product) => <CleanCard key={product.sku} product={product} onAdd={onAdd} onToggle={onToggle} liked={liked.some((item) => item.sku === product.sku)} />)}</div></section></> }
-function CleanProducts({ items, onAdd, onToggle, liked, search = '' }) { const [sort, setSort] = useState('popular'); const [category, setCategory] = useState('all'); const [page, setPage] = useState(1); const filtered = items.filter((item) => category === 'all' || item.category === category).sort((a, b) => sort === 'low' ? Number(a.price.replace(/\D/g, '')) - Number(b.price.replace(/\D/g, '')) : sort === 'high' ? Number(b.price.replace(/\D/g, '')) - Number(a.price.replace(/\D/g, '')) : 0); return <section className="store-section products-view"><div className="store-section-head"><div><span className="section-kicker">CATALOG</span><h2>{search ? `Kết quả cho “${search}”` : 'Tất cả sản phẩm'}</h2><p>{filtered.length} sản phẩm sẵn sàng giao đến bạn.</p></div><select className="sort-button" value={sort} onChange={(event) => setSort(event.target.value)}><option value="popular">Phổ biến nhất</option><option value="low">Giá thấp đến cao</option><option value="high">Giá cao đến thấp</option></select></div><div className="product-toolbar"><div className="filter-chips"><button className={category === 'all' ? 'active' : ''} onClick={() => { setCategory('all'); setPage(1) }}>Tất cả</button>{['Điện thoại', 'Laptop', 'Phụ kiện', 'Tablet'].map((item) => <button key={item} className={category === item ? 'active' : ''} onClick={() => { setCategory(item); setPage(1) }}>{item}</button>)}</div><span className="filter-result">Trang {page} · {filtered.length} sản phẩm</span></div>{filtered.length ? <div className="store-product-grid">{filtered.map((product) => <CleanCard key={product.sku} product={product} onAdd={onAdd} onToggle={onToggle} liked={liked.some((item) => item.sku === product.sku)} />)}</div> : <CleanEmpty onReset={() => setCategory('all')} />}{filtered.length > 0 && <div className="pagination"><button disabled={page === 1} onClick={() => setPage(page - 1)}>‹</button><button className="active">{page}</button><button onClick={() => setPage(page + 1)}>›</button></div>}</section> }
-function CleanCard({ product, onAdd, onToggle, liked }) { return <article className="store-product-card"><div className={`store-product-visual ${product.color}`}><span className="product-badge">{product.stock < 10 ? 'Sắp hết' : 'Bán chạy'}</span><button className={`heart-button ${liked ? 'liked' : ''}`} onClick={() => onToggle(product)}><Heart size={17} fill={liked ? 'currentColor' : 'none'} /></button><Package size={64} strokeWidth={1.2} /></div><div className="store-product-info"><span>{product.category}</span><h3>{product.name}</h3><div className="product-rating"><Star size={13} fill="currentColor" /> 4.9 <small>(24)</small></div><div className="product-buy"><strong>{product.price}</strong><button onClick={() => onAdd(product)}><Plus size={17} /></button></div></div></article> }
-function CleanEmpty({ onReset }) { return <div className="clean-empty"><ShoppingCart size={34} /><h3>Chưa có sản phẩm</h3><p>Hiện tại chưa có sản phẩm phù hợp với tìm kiếm của bạn.</p><button className="store-primary" onClick={onReset}>Mua sắm ngay</button></div> }
-function CleanCategories({ onSelect }) { return <section className="store-section"><div className="store-section-head"><div><span className="section-kicker">BẮT ĐẦU MUA SẮM</span><h2>Khám phá theo danh mục</h2></div></div><div className="store-category-grid">{['Điện thoại', 'Laptop', 'Tablet', 'Phụ kiện'].map((item, index) => <button className={`store-category category-${index}`} key={item} onClick={() => onSelect(item)}><span>{['◌', '▱', '▯', '⌁'][index]}</span><strong>{item}</strong><small>Xem sản phẩm <ArrowUpRight size={13} /></small></button>)}</div></section> }
-function CleanCart({ items, onNavigate }) { return <section className="store-section cart-view"><div className="store-section-head"><div><span className="section-kicker">YOUR BAG</span><h2>Giỏ hàng của bạn</h2><p>{items.length} sản phẩm đang chờ thanh toán.</p></div></div>{items.length ? <div className="cart-items">{items.map((item) => <div className="cart-item" key={item.sku}><div className={`store-product-visual small ${item.color}`}><Package size={34} /></div><div className="cart-item-copy"><span>{item.category}</span><h3>{item.name}</h3><strong>{item.price}</strong></div></div>)}<button className="store-primary checkout-button" onClick={() => onNavigate('home')}>Tiếp tục mua sắm <ArrowUpRight size={16} /></button></div> : <div className="empty-state"><ShoppingCart size={35} /><h3>Giỏ hàng đang trống</h3><button className="store-primary" onClick={() => onNavigate('products')}>Tiếp tục mua sắm</button></div>}</section> }
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setMsg('')
+    try {
+      if (register) {
+        await api.register({ ...formData, role: 'staff' })
+        setMsg('Tạo tài khoản thành công! Bạn có thể đăng nhập ngay.')
+      }
+    } catch (err) {
+      setMessageType('error')
+      setMsg(err.message || 'Thao tác không thành công')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-export function CleanAdmin({ role, onLogout }) {
+  return (
+    <main className="login-page auth-secondary">
+      <div className="login-art">
+        <div className="login-art-top">
+          <div className="brand-mark">&#10022;</div>
+          <div className="brand-name">smart<span>stock</span></div>
+        </div>
+        <div className="login-art-copy">
+          <div className="eyebrow">SMARTSTOCK ACCOUNT</div>
+          <h1>{register ? 'Bắt đầu hành trình' : 'Lấy lại quyền'}<br /><em>{register ? 'thông minh hơn.' : 'truy cập.'}</em></h1>
+        </div>
+      </div>
+      <div className="login-form-wrap">
+        <form className="login-form" onSubmit={handleSubmit}>
+          <button type="button" className="back-auth" onClick={onBack}>
+            &larr; Quay lại đăng nhập
+          </button>
+          <div className="login-heading">
+              <div className="eyebrow">TẠO TÀI KHOẢN</div>
+              <h2>Đăng ký tài khoản</h2>
+              <p>Tạo tài khoản hệ thống để bắt đầu vận hành.</p>
+          </div>
+
+            {msg && <div className={`login-error-badge ${messageType === 'success' ? 'success' : ''}`}>{msg}</div>}
+
+          {register && (
+            <>
+              <label>
+                Tên đăng nhập
+                <input
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  placeholder="nhanvien_01"
+                  required
+                />
+              </label>
+              <label>
+                Họ và tên
+                <input
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  placeholder="Nguyễn Minh Anh"
+                  required
+                />
+              </label>
+              <label>
+                Số điện thoại
+                <input
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="0912345678"
+                />
+              </label>
+            </>
+          )}
+
+          <label>
+            Email
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="you@example.com"
+              required
+            />
+          </label>
+
+          <label>
+            Mật khẩu
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder="Tối thiểu 6 ký tự"
+              required
+            />
+          </label>
+
+          <button className="button primary login-button" type="submit" disabled={loading}>
+            {loading ? 'Đang xử lý...' : 'Tạo tài khoản'} <ArrowUpRight size={17} />
+          </button>
+        </form>
+      </div>
+    </main>
+  )
+}
+
+// ----------------------------------------------------
+// STOREFRONT: REAL BACKEND CATALOG & ORDERS
+// ----------------------------------------------------
+export function CleanStorefront({ onLogout, currentUser }) {
+  const [page, setPage] = useState('home')
+  const [search, setSearch] = useState('')
+  const [cart, setCart] = useState([])
+  const [liked, setLiked] = useState([])
+  const [dark, setDark] = useState(() => localStorage.getItem('smartstock-theme') === 'dark')
+  const [toast, setToast] = useState('')
+  const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    localStorage.setItem('smartstock-theme', dark ? 'dark' : 'light')
+  }, [dark])
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const [prodRes, catRes] = await Promise.all([
+        api.getProducts({ pageSize: 50 }),
+        api.getCategories(),
+      ])
+      const pItems = prodRes?.items || prodRes || []
+      const cItems = catRes || []
+      setProducts(pItems)
+      setCategories(cItems)
+    } catch (err) {
+      console.error('Error loading storefront products:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const notify = (msg) => {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2500)
+  }
+
+  const add = (item) => {
+    setCart((items) => {
+      const exists = items.find((e) => e.id === item.id)
+      if (exists) {
+        return items.map((e) => (e.id === item.id ? { ...e, cartQty: (e.cartQty || 1) + 1 } : e))
+      }
+      return [...items, { ...item, cartQty: 1 }]
+    })
+    notify(`Đã thêm "${item.name}" vào giỏ hàng`)
+  }
+
+  const toggle = (item) => {
+    setLiked((items) =>
+      items.some((entry) => entry.id === item.id)
+        ? items.filter((entry) => entry.id !== item.id)
+        : [...items, item]
+    )
+  }
+
+  const visible = products.filter((item) =>
+    `${item.name} ${item.categoryName || ''} ${item.productCode}`.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className={`storefront ${dark ? 'storefront-dark' : ''}`}>
+      <header className="store-header">
+        <button className="store-brand" onClick={() => setPage('home')}>
+          <span className="brand-mark">&#10022;</span>
+          <span className="brand-name">smart<span>stock</span></span>
+        </button>
+        <nav className="store-nav">
+          <button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>Trang chủ</button>
+          <button className={page === 'products' ? 'active' : ''} onClick={() => setPage('products')}>Sản phẩm</button>
+          <button onClick={() => setPage('categories')}>Danh mục</button>
+          <button onClick={() => setPage('about')}>Về SmartStock</button>
+        </nav>
+        <div className="store-actions">
+          <div className="store-search">
+            <Search size={17} />
+            <input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage('products') }}
+              placeholder="Tìm kiếm sản phẩm..."
+            />
+          </div>
+          <button className="store-icon" onClick={() => setDark(!dark)} title="Đổi giao diện">
+            {dark ? '☀' : '☾'}
+          </button>
+          <button className="store-icon" onClick={() => setPage('wishlist')} title="Yêu thích">
+            <Heart size={19} fill={liked.length ? 'currentColor' : 'none'} />
+            <i>{liked.length}</i>
+          </button>
+          <button className="store-icon" onClick={() => setPage('cart')} title="Giỏ hàng">
+            <ShoppingCart size={19} />
+            <i>{cart.reduce((s, i) => s + (i.cartQty || 1), 0)}</i>
+          </button>
+          <button className="store-account" onClick={onLogout} title="Đăng xuất / Quay lại đăng nhập">
+            <span>{currentUser?.fullName?.[0] || 'K'}</span>
+            <ChevronDown size={14} />
+          </button>
+        </div>
+      </header>
+
+      <main className="store-main">
+        {page === 'home' && (
+          <CleanHome
+            products={products}
+            onNavigate={setPage}
+            onAdd={add}
+            onToggle={toggle}
+            liked={liked}
+          />
+        )}
+        {page === 'products' && (
+          <CleanProducts
+            items={visible}
+            categories={categories}
+            onAdd={add}
+            onToggle={toggle}
+            liked={liked}
+            search={search}
+            loading={loading}
+          />
+        )}
+        {page === 'categories' && (
+          <CleanCategories
+            categories={categories}
+            onSelect={(catName) => { setSearch(catName); setPage('products') }}
+          />
+        )}
+        {page === 'cart' && (
+          <CleanCart
+            items={cart}
+            setCart={setCart}
+            onNavigate={setPage}
+            onNotify={notify}
+          />
+        )}
+        {page === 'wishlist' && (
+          <CleanProducts
+            items={liked}
+            categories={categories}
+            onAdd={add}
+            onToggle={toggle}
+            liked={liked}
+            title="Danh sách yêu thích"
+          />
+        )}
+        {page === 'about' && (
+          <section className="about-view">
+            <div className="about-copy">
+              <span className="section-kicker">THE SMARTSTOCK PLATFORM</span>
+              <h2>Quản lý kho &amp; bán hàng<br /><em>kết nối Backend thời gian thực.</em></h2>
+              <p>Hệ thống hỗ trợ quản lý sản phẩm, tồn kho, đơn hàng, nhà cung cấp và phân quyền chi tiết.</p>
+            </div>
+          </section>
+        )}
+      </main>
+
+      {toast && (
+        <div className="store-toast">
+          <Check size={15} />{toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CleanHome({ products, onNavigate, onAdd, onToggle, liked }) {
+  const featured = products.slice(0, 4)
+  return (
+    <>
+      <section className="store-hero">
+        <div>
+          <span className="hero-kicker">HỆ THỐNG KHO &amp; CỬA HÀNG ĐỒNG BỘ</span>
+          <h1>Đồ công nghệ<br /><em>kết nối tức thì.</em></h1>
+          <p>Mỗi sản phẩm hiển thị đều được đồng bộ từ Cơ sở dữ liệu và API Backend.</p>
+          <button className="store-primary" onClick={() => onNavigate('products')}>
+            Khám phá sản phẩm <ChevronRight size={17} />
+          </button>
+        </div>
+        <div className="hero-device">
+          <div className="device-card device-laptop">
+            <div className="device-screen"><span>SMART</span><strong>stock</strong></div>
+          </div>
+          <div className="device-card device-phone">
+            <div className="phone-screen"><span>09:41</span><b>✦</b></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="store-section">
+        <div className="store-section-head">
+          <div>
+            <span className="section-kicker">DỮ LIỆU THẬT TỪ DATABASE</span>
+            <h2>Sản phẩm nổi bật</h2>
+          </div>
+          <button className="store-link" onClick={() => onNavigate('products')}>
+            Xem tất cả <ArrowUpRight size={15} />
+          </button>
+        </div>
+        <div className="store-product-grid">
+          {featured.map((p) => (
+            <CleanCard
+              key={p.id}
+              product={p}
+              onAdd={onAdd}
+              onToggle={onToggle}
+              liked={liked.some((it) => it.id === p.id)}
+            />
+          ))}
+        </div>
+      </section>
+    </>
+  )
+}
+
+function CleanProducts({ items, categories = [], onAdd, onToggle, liked, search = '', title, loading }) {
+  const [sort, setSort] = useState('popular')
+  const [selectedCat, setSelectedCat] = useState('all')
+
+  const filtered = items
+    .filter((it) => selectedCat === 'all' || (it.categoryName || '') === selectedCat)
+    .sort((a, b) => {
+      if (sort === 'low') return a.price - b.price
+      if (sort === 'high') return b.price - a.price
+      return b.quantity - a.quantity
+    })
+
+  return (
+    <section className="store-section products-view">
+      <div className="store-section-head">
+        <div>
+          <span className="section-kicker">CATALOG LIVE</span>
+          <h2>{title || (search ? `Kết quả cho "${search}"` : 'Tất cả sản phẩm')}</h2>
+          <p>{filtered.length} sản phẩm từ cơ sở dữ liệu SmartStock.</p>
+        </div>
+        <select className="sort-button" value={sort} onChange={(e) => setSort(e.target.value)}>
+          <option value="popular">Tồn kho nhiều nhất</option>
+          <option value="low">Giá thấp đến cao</option>
+          <option value="high">Giá cao đến thấp</option>
+        </select>
+      </div>
+
+      <div className="product-toolbar">
+        <div className="filter-chips">
+          <button className={selectedCat === 'all' ? 'active' : ''} onClick={() => setSelectedCat('all')}>
+            Tất cả
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              className={selectedCat === c.name ? 'active' : ''}
+              onClick={() => setSelectedCat(c.name)}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="api-loading-state">
+          <RefreshCw className="spin" size={24} /> Đang tải sản phẩm từ máy chủ...
+        </div>
+      ) : filtered.length ? (
+        <div className="store-product-grid">
+          {filtered.map((product) => (
+            <CleanCard
+              key={product.id}
+              product={product}
+              onAdd={onAdd}
+              onToggle={onToggle}
+              liked={liked.some((it) => it.id === product.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <CleanEmpty onReset={() => setSelectedCat('all')} />
+      )}
+    </section>
+  )
+}
+
+function CleanCard({ product, onAdd, onToggle, liked }) {
+  const stock = product.quantity ?? product.stock ?? 0
+  const color = product.color || 'midnight'
+  return (
+    <article className="store-product-card">
+      <div className={`store-product-visual ${color}`}>
+        <span className="product-badge">
+          {stock === 0 ? 'Hết hàng' : stock < 10 ? 'Sắp hết' : 'Có sẵn'}
+        </span>
+        <button
+          className={`heart-button ${liked ? 'liked' : ''}`}
+          onClick={() => onToggle(product)}
+          type="button"
+        >
+          <Heart size={17} fill={liked ? 'currentColor' : 'none'} />
+        </button>
+        <Package size={64} strokeWidth={1.2} />
+      </div>
+      <div className="store-product-info">
+        <span>{product.categoryName || product.category || 'Công nghệ'}</span>
+        <h3>{product.name}</h3>
+        <div className="product-rating">
+          <Star size={13} fill="currentColor" /> 5.0 <small>(Kho: {stock})</small>
+        </div>
+        <div className="product-buy">
+          <strong>{formatVND(product.price)}</strong>
+          <button
+            onClick={() => onAdd(product)}
+            disabled={stock <= 0}
+            title={stock <= 0 ? 'Tạm thời hết hàng' : 'Thêm vào giỏ'}
+          >
+            <Plus size={17} />
+          </button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function CleanEmpty({ onReset }) {
+  return (
+    <div className="clean-empty">
+      <ShoppingCart size={34} />
+      <h3>Chưa có sản phẩm phù hợp</h3>
+      <p>Hiện tại chưa có sản phẩm nào khớp với bộ lọc hiện tại.</p>
+      <button className="store-primary" onClick={onReset}>
+        Xem tất cả
+      </button>
+    </div>
+  )
+}
+
+function CleanCategories({ categories, onSelect }) {
+  return (
+    <section className="store-section">
+      <div className="store-section-head">
+        <div>
+          <span className="section-kicker">DANH MỤC THẬT TỪ HỆ THỐNG</span>
+          <h2>Khám phá theo danh mục</h2>
+        </div>
+      </div>
+      <div className="store-category-grid">
+        {categories.map((c, index) => (
+          <button
+            className={`store-category category-${index % 4}`}
+            key={c.id}
+            onClick={() => onSelect(c.name)}
+          >
+            <span>{c.icon || '📦'}</span>
+            <strong>{c.name}</strong>
+            <small>{c.productCount ?? 0} sản phẩm &bull; Xem ngay <ArrowUpRight size={13} /></small>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CleanCart({ items, setCart, onNavigate, onNotify }) {
+  const [submitting, setSubmitting] = useState(false)
+  const total = items.reduce((s, it) => s + (it.price * (it.cartQty || 1)), 0)
+
+  const handleCheckout = async () => {
+    if (!items.length) return
+    setSubmitting(true)
+    try {
+      const orderPayload = {
+        customerId: null,
+        discount: 0,
+        paymentMethod: 'COD',
+        note: 'Đơn hàng tạo từ Storefront Web',
+        details: items.map((it) => ({
+          productId: it.id,
+          quantity: it.cartQty || 1,
+        })),
+      }
+      const order = await api.createOrder(orderPayload)
+      setCart([])
+      onNotify(`Tạo đơn hàng #${order.orderCode} thành công!`)
+      onNavigate('home')
+    } catch (err) {
+      alert(err.message || 'Lỗi khi tạo đơn hàng')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <section className="store-section cart-view">
+      <div className="store-section-head">
+        <div>
+          <span className="section-kicker">GIỎ HÀNG CỦA BẠN</span>
+          <h2>Chi tiết đơn mua</h2>
+          <p>{items.length} mặt hàng đang chờ thanh toán.</p>
+        </div>
+      </div>
+      {items.length ? (
+        <div className="cart-items">
+          {items.map((it) => (
+            <div className="cart-item" key={it.id}>
+              <div className="store-product-visual small midnight">
+                <Package size={34} />
+              </div>
+              <div className="cart-item-copy">
+                <span>{it.categoryName || 'Sản phẩm'}</span>
+                <h3>{it.name} &times; {it.cartQty || 1}</h3>
+                <strong>{formatVND(it.price * (it.cartQty || 1))}</strong>
+              </div>
+              <button
+                className="modal-close"
+                onClick={() => setCart((prev) => prev.filter((p) => p.id !== it.id))}
+                title="Xóa khỏi giỏ"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+          <div className="order-total-row" style={{ marginTop: 20 }}>
+            <span>Tổng số tiền:</span>
+            <strong>{formatVND(total)}</strong>
+          </div>
+          <button
+            className="store-primary checkout-button"
+            onClick={handleCheckout}
+            disabled={submitting}
+          >
+            {submitting ? 'Đang gửi đơn hàng...' : 'Đặt hàng ngay (Tạo Đơn Hàng Thật)'} <ArrowUpRight size={16} />
+          </button>
+        </div>
+      ) : (
+        <div className="empty-state">
+          <ShoppingCart size={35} />
+          <h3>Giỏ hàng đang trống</h3>
+          <button className="store-primary" onClick={() => onNavigate('products')}>
+            Tiếp tục mua sắm
+          </button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ----------------------------------------------------
+// ADMIN DASHBOARD & MODULES (CONNECTED TO REAL API)
+// ----------------------------------------------------
+export function CleanAdmin({ role, onLogout, currentUser }) {
   const [page, setPage] = useState('dashboard')
   const [dark, setDark] = useState(() => localStorage.getItem('smartstock-admin-theme') === 'dark')
   const [globalSearch, setGlobalSearch] = useState('')
   const [showNotifications, setShowNotifications] = useState(false)
+  const [notifications, setNotifications] = useState([])
   const staff = role === 'staff'
-  useEffect(() => { localStorage.setItem('smartstock-admin-theme', dark ? 'dark' : 'light') }, [dark])
+
+  useEffect(() => {
+    localStorage.setItem('smartstock-admin-theme', dark ? 'dark' : 'light')
+  }, [dark])
+
+  const fetchNotifs = async () => {
+    try {
+      const data = await api.getNotifications()
+      setNotifications(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    fetchNotifs()
+  }, [])
+
   const items = [
-    ['Tổng quan', 'dashboard'], ['Sản phẩm', 'products'], ['Danh mục', 'categories'], ['Tồn kho', 'inventory'], ['Đơn hàng', 'orders'],
-    ['Báo cáo', 'reports'], ['Khuyến mãi', 'promotions'], ['Đánh giá', 'reviews'], ['Đơn nhập hàng', 'purchase-orders'], ...(staff ? [] : [['Người dùng', 'users'], ['Phân quyền', 'roles'], ['Thông báo', 'notifications'], ['System Health', 'system'], ['Deployment', 'deployment'], ['Activity Logs', 'logs'], ['Kho / Chi nhánh', 'warehouses'], ['Nhà cung cấp', 'suppliers'], ['Bảo mật', 'security'], ['Cài đặt', 'settings']]),
+    ['Tổng quan', 'dashboard'],
+    ['Sản phẩm', 'products'],
+    ['Danh mục', 'categories'],
+    ['Tồn kho', 'inventory'],
+    ['Đơn hàng', 'orders'],
+    ['Báo cáo', 'reports'],
+    ['Khuyến mãi', 'promotions'],
+    ['Đánh giá', 'reviews'],
+    ['Đơn nhập hàng', 'purchase-orders'],
+    ...(staff
+      ? []
+      : [
+          ['Người dùng', 'users'],
+          ['Nhà cung cấp', 'suppliers'],
+          ['Khách hàng', 'customers'],
+          ['Thông báo', 'notifications'],
+          ['System Health', 'system'],
+          ['Cài đặt', 'settings'],
+        ]),
   ]
-  const filteredItems = globalSearch ? items.filter(([label]) => label.toLowerCase().includes(globalSearch.toLowerCase())) : items
-  return <div className={`app-shell admin-shell ${dark ? 'admin-dark' : ''}`}><aside className="sidebar clean-admin-sidebar"><div className="brand-row"><div className="brand-mark">&#10022;</div><div><div className="brand-name">smart<span>stock</span></div><div className="brand-caption">INVENTORY OS</div></div></div><div className="workspace-switcher"><div className="workspace-avatar">S</div><div className="workspace-copy"><strong>SmartStock Store</strong><span>Cửa hàng chính</span></div><ChevronDown size={16} /></div><nav className="main-nav"><div className="nav-label">QUẢN LÝ</div>{filteredItems.map(([label, key]) => <button key={key} className={`nav-item ${page === key ? 'active' : ''}`} onClick={() => setPage(key)}><span>{label}</span></button>)}</nav><div className="sidebar-footer"><div className="profile-row"><div className="profile-avatar">C</div><div><strong>Cường</strong><span>{staff ? 'Nhân viên' : 'Quản trị viên'}</span></div><button className="icon-button" onClick={onLogout} title="Đăng xuất">↪</button></div></div></aside><main className="main-content"><header className="topbar"><div className="breadcrumb"><span>SmartStock</span><b>/</b><strong>{items.find((item) => item[1] === page)?.[0] || 'Tổng quan'}</strong></div><div className="admin-top-actions"><div className="global-search"><Search size={16} /><input value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Tìm nhanh trong hệ thống..." /></div><button className="admin-header-icon" onClick={() => setDark(!dark)} title="Đổi giao diện">{dark ? <Sun size={17} /> : <Moon size={17} />}</button><button className="admin-header-icon notification-trigger" onClick={() => setShowNotifications(!showNotifications)} title="Thông báo"><Bell size={17} /><i /></button>{showNotifications && <div className="admin-notification-popover"><strong>Thông báo mới</strong><span>3 sản phẩm sắp hết hàng</span><span>Đơn hàng #ORD102 đang chờ xử lý</span><span>Hệ thống vừa deploy phiên bản mới</span></div>}<div className="top-profile"><div className="profile-avatar">C</div><div><strong>Cường</strong><span>{staff ? 'Staff' : 'Admin'}</span></div></div></div></header><div className="page-content"><CleanAdminPage page={page} staff={staff} /></div></main></div>
+
+  const filteredItems = globalSearch
+    ? items.filter(([label]) => label.toLowerCase().includes(globalSearch.toLowerCase()))
+    : items
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length
+
+  return (
+    <div className={`app-shell admin-shell ${dark ? 'admin-dark' : ''}`}>
+      <aside className="sidebar clean-admin-sidebar">
+        <div className="brand-row">
+          <div className="brand-mark">&#10022;</div>
+          <div>
+            <div className="brand-name">smart<span>stock</span></div>
+            <div className="brand-caption">INVENTORY OS</div>
+          </div>
+        </div>
+
+        <div className="workspace-switcher">
+          <div className="workspace-avatar">S</div>
+          <div className="workspace-copy">
+            <strong>SmartStock Store</strong>
+            <span>Hệ thống Live Backend</span>
+          </div>
+          <ChevronDown size={16} />
+        </div>
+
+        <nav className="main-nav">
+          <div className="nav-label">QUẢN LÝ</div>
+          {filteredItems.map(([label, key]) => (
+            <button
+              key={key}
+              className={`nav-item ${page === key ? 'active' : ''}`}
+              onClick={() => setPage(key)}
+            >
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="profile-row">
+            <div className="profile-avatar">{currentUser?.fullName?.[0] || 'A'}</div>
+            <div>
+              <strong>{currentUser?.fullName || 'Quản trị viên'}</strong>
+              <span>{staff ? 'Nhân viên' : role === 'warehouse' ? 'Thủ kho' : 'Quản trị viên'}</span>
+            </div>
+            <button className="icon-button" onClick={onLogout} title="Đăng xuất">
+              ↪
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <main className="main-content">
+        <header className="topbar">
+          <div className="breadcrumb">
+            <span>SmartStock</span>
+            <b>/</b>
+            <strong>{items.find((item) => item[1] === page)?.[0] || 'Tổng quan'}</strong>
+          </div>
+
+          <div className="admin-top-actions">
+            <div className="global-search">
+              <Search size={16} />
+              <input
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                placeholder="Tìm nhanh trong hệ thống..."
+              />
+            </div>
+
+            <button className="admin-header-icon" onClick={() => setDark(!dark)} title="Đổi giao diện">
+              {dark ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
+
+            <button
+              className="admin-header-icon notification-trigger"
+              onClick={() => setShowNotifications(!showNotifications)}
+              title="Thông báo"
+            >
+              <Bell size={17} />
+              {unreadCount > 0 && <i>{unreadCount}</i>}
+            </button>
+
+            {showNotifications && (
+              <div className="admin-notification-popover">
+                <strong>Thông báo ({notifications.length})</strong>
+                {notifications.slice(0, 5).map((n, idx) => (
+                  <span key={idx}>
+                    <b>{n.title}:</b> {n.message}
+                  </span>
+                ))}
+                {notifications.length === 0 && <span>Không có thông báo mới</span>}
+              </div>
+            )}
+
+            <div className="top-profile">
+              <div className="profile-avatar">{currentUser?.fullName?.[0] || 'A'}</div>
+              <div>
+                <strong>{currentUser?.fullName || 'Admin'}</strong>
+                <span>{staff ? 'Staff' : role === 'warehouse' ? 'Kho' : 'Admin'}</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="page-content">
+          <CleanAdminPage page={page} staff={staff} currentUser={currentUser} />
+        </div>
+      </main>
+    </div>
+  )
 }
 
-function CleanAdminPage({ page, staff }) {
-  const title = { dashboard: 'Chào Cường', products: 'Sản phẩm', categories: 'Danh mục', inventory: 'Tồn kho', orders: 'Đơn hàng', reports: 'Báo cáo', promotions: 'Khuyến mãi', reviews: 'Đánh giá', 'purchase-orders': 'Đơn nhập hàng', users: 'Người dùng', roles: 'Phân quyền', notifications: 'Thông báo', system: 'System Health', deployment: 'Deployment', logs: 'Activity Logs', warehouses: 'Kho / Chi nhánh', suppliers: 'Nhà cung cấp', security: 'Bảo mật', settings: 'Cài đặt' }[page]
-  const descriptions = { dashboard: 'Đây là những gì đang diễn ra tại cửa hàng của bạn hôm nay.', products: 'Quản lý danh mục sản phẩm và theo dõi lượng tồn kho.', categories: 'Phân loại sản phẩm để quản lý cửa hàng rõ ràng hơn.', inventory: 'Kiểm soát nhập, xuất và trạng thái tồn kho theo thời gian thực.', orders: 'Theo dõi và xử lý toàn bộ đơn hàng của cửa hàng.', reports: 'Đọc nhanh hiệu suất bán hàng và sức khỏe danh mục.', promotions: 'Tạo và quản lý các ưu đãi dành cho khách hàng.', reviews: 'Theo dõi phản hồi để cải thiện trải nghiệm mua sắm.', 'purchase-orders': 'Theo dõi đơn đặt hàng nhập từ nhà cung cấp.', users: 'Quản lý thành viên và quyền truy cập hệ thống.', roles: 'Cấu hình quyền hạn cho Admin, Nhân viên và Kế toán.', notifications: 'Gửi và theo dõi thông báo đến khách hàng và đội ngũ.', system: 'Theo dõi sức khỏe hệ thống và lịch sử triển khai.', deployment: 'Theo dõi môi trường production và lịch sử triển khai.', logs: 'Nhật ký hoạt động của người dùng và hệ thống.', warehouses: 'Quản lý tồn kho theo kho và chuyển kho nội bộ.', suppliers: 'Theo dõi đối tác và nguồn nhập hàng cho kho.', security: 'Giám sát phiên đăng nhập và hoạt động nhạy cảm.', settings: 'Cấu hình cửa hàng, thanh toán và trải nghiệm quản trị.' }[page]
-  if (page === 'dashboard') return <CleanDashboard title={title} description={descriptions} />
-  if (page === 'dashboard') return <><section className="page-heading"><div><div className="eyebrow">CHÚC BẠN MỘT NGÀY VUI</div><h1>{title} <span>✦</span></h1><p>{descriptions}</p></div><button className="button primary"><Plus size={18} /> Thêm sản phẩm</button></section><div className="metric-grid"><CleanMetric label="Doanh thu tháng này" value="284.560.000đ" tone="coral" /><CleanMetric label="Tổng sản phẩm" value="1.284" tone="mint" /><CleanMetric label="Giá trị tồn kho" value="1.856.240.000đ" tone="lavender" /><CleanMetric label="Đơn hàng mới" value="86" tone="yellow" /></div><div className="dashboard-grid"><div className="panel chart-panel"><div className="panel-heading"><div><h2>Doanh thu</h2><span>Hiệu suất bán hàng trong 7 tháng gần nhất</span></div></div><div className="chart-summary"><strong>284.560.000đ</strong><span><TrendingUp size={14} /> 12,8%</span></div><div className="clean-bars">{[42, 57, 48, 76, 64, 82, 69].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div></div><div className="panel stock-panel"><div className="panel-heading"><div><h2>Cảnh báo tồn kho</h2><span>Các sản phẩm cần được nhập thêm</span></div></div>{cleanProducts.slice(0, 3).map((product) => <div className="stock-item" key={product.sku}><div className={`product-thumb ${product.color}`}><Package size={20} /></div><div className="stock-info"><strong>{product.name}</strong><span>{product.stock} sản phẩm tồn kho</span></div></div>)}</div></div></>
-  return <CleanAdminModule page={page} title={title} description={descriptions} />
+function CleanAdminPage({ page, staff, currentUser }) {
+  const titles = {
+    dashboard: `Chào ${currentUser?.fullName || 'Quản trị viên'}`,
+    products: 'Sản phẩm',
+    categories: 'Danh mục',
+    inventory: 'Tồn kho',
+    orders: 'Đơn hàng',
+    reports: 'Báo cáo',
+    promotions: 'Khuyến mãi',
+    reviews: 'Đánh giá',
+    'purchase-orders': 'Đơn nhập hàng',
+    users: 'Người dùng',
+    suppliers: 'Nhà cung cấp',
+    customers: 'Khách hàng',
+    notifications: 'Thông báo',
+    system: 'System Health',
+    settings: 'Cài đặt',
+  }
+
+  const descriptions = {
+    dashboard: 'Dữ liệu tổng hợp theo thời gian thực từ cơ sở dữ liệu SQL Server.',
+    products: 'Quản lý toàn bộ danh mục sản phẩm, giá bán và lượng tồn kho.',
+    categories: 'Quản lý danh mục phân loại sản phẩm.',
+    inventory: 'Kiểm soát số lượng tồn kho và thực hiện điều chỉnh kho.',
+    orders: 'Theo dõi, xác nhận và cập nhật trạng thái đơn hàng.',
+    reports: 'Thống kê doanh thu và phân tích hiệu suất.',
+    promotions: 'Chính sách ưu đãi và khuyến mãi.',
+    reviews: 'Đánh giá của khách hàng về sản phẩm.',
+    'purchase-orders': 'Theo dõi phiếu nhập kho từ nhà cung cấp.',
+    users: 'Quản lý danh sách tài khoản nhân sự và phân quyền.',
+    suppliers: 'Danh sách đối tác cung cấp hàng hóa cho kho.',
+    customers: 'Danh sách khách hàng đã mua sắm trên hệ thống.',
+    notifications: 'Cảnh báo tồn kho, thông báo đơn hàng và hệ thống.',
+    system: 'Giám sát trạng thái Backend API, Cơ sở dữ liệu và độ trễ.',
+    settings: 'Cấu hình thông tin cửa hàng.',
+  }
+
+  const title = titles[page] || 'Quản lý'
+  const desc = descriptions[page] || ''
+
+  if (page === 'dashboard') return <CleanDashboard title={title} description={desc} />
+  return <CleanAdminModule page={page} title={title} description={desc} />
 }
 
+// ----------------------------------------------------
+// DASHBOARD: REAL DATA FROM /api/dashboard
+// ----------------------------------------------------
+function CleanDashboard({ title, description }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetchDashboard = async () => {
+    setLoading(true)
+    try {
+      const res = await api.getDashboard()
+      setData(res)
+    } catch (err) {
+      console.error('Failed to load dashboard:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchDashboard()
+  }, [])
+
+  const totalProducts = data?.totalProducts ?? 0
+  const totalCustomers = data?.totalCustomers ?? 0
+  const totalOrders = data?.totalOrders ?? 0
+  const todayRevenue = data?.todayRevenue ?? 0
+  const monthRevenue = data?.monthRevenue ?? 0
+  const lowStockCount = data?.lowStockCount ?? 0
+  const outOfStockCount = data?.outOfStockCount ?? 0
+  const topProducts = data?.topProducts || []
+
+  return (
+    <>
+      <section className="page-heading">
+        <div>
+          <div className="eyebrow">DASHBOARD &bull; BACKEND API LIVE</div>
+          <h1>{title} <span>✦</span></h1>
+          <p>{description}</p>
+        </div>
+        <button className="button ghost" onClick={fetchDashboard} disabled={loading}>
+          <RefreshCw size={15} className={loading ? 'spin' : ''} /> Làm mới
+        </button>
+      </section>
+
+      <div className="metric-grid">
+        <CleanMetric
+          label="Doanh thu tháng này"
+          value={formatVND(monthRevenue)}
+          tone="coral"
+        />
+        <CleanMetric
+          label="Tổng sản phẩm"
+          value={totalProducts.toString()}
+          tone="mint"
+        />
+        <CleanMetric
+          label="Tổng đơn hàng"
+          value={totalOrders.toString()}
+          tone="yellow"
+        />
+        <CleanMetric
+          label="Khách hàng"
+          value={totalCustomers.toString()}
+          tone="lavender"
+        />
+      </div>
+
+      <div className="dashboard-stat-grid">
+        <AdminKpi label="Doanh thu hôm nay" value={formatVND(todayRevenue)} tone="success" />
+        <AdminKpi label="Sản phẩm sắp hết" value={lowStockCount.toString()} tone="warning" />
+        <AdminKpi label="Sản phẩm hết hàng" value={outOfStockCount.toString()} tone="danger" />
+      </div>
+
+      <div className="dashboard-grid">
+        <div className="panel chart-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Biểu đồ doanh thu</h2>
+              <span>Doanh thu theo tháng hoàn thành</span>
+            </div>
+          </div>
+          <div className="chart-summary">
+            <strong>{formatVND(monthRevenue)}</strong>
+            <span><TrendingUp size={14} /> Trực tiếp từ DB</span>
+          </div>
+          <div className="clean-bars">
+            {data?.monthlyRevenue?.length ? (
+              data.monthlyRevenue.map((m) => (
+                <div className="dashboard-bar" key={`${m.year}-${m.month}`}>
+                  <i style={{ height: `${Math.min(100, Math.max(15, (m.revenue / (monthRevenue || 1)) * 100))}%` }} />
+                  <span>T{m.month}</span>
+                </div>
+              ))
+            ) : (
+              [35, 50, 42, 65, 80, 60, 90].map((h, i) => (
+                <div className="dashboard-bar" key={i}>
+                  <i style={{ height: `${h}%` }} />
+                  <span>T{i + 1}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="panel stock-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Top sản phẩm bán chạy</h2>
+              <span>Dựa trên các đơn hàng đã tạo</span>
+            </div>
+          </div>
+          {topProducts.length ? (
+            topProducts.map((p) => (
+              <div className="stock-item" key={p.productId}>
+                <div className="product-thumb midnight"><Package size={20} /></div>
+                <div className="stock-info">
+                  <strong>{p.productName}</strong>
+                  <span>{p.totalSold} đã bán &bull; {formatVND(p.totalRevenue)}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: '20px 0', color: '#888', fontSize: '13px' }}>
+              Chưa có dữ liệu bán chạy. Tạo đơn hàng mới để hiển thị thống kê.
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ----------------------------------------------------
+// ADMIN MODULES (PRODUCTS, CATEGORIES, INVENTORY, ORDERS, ETC.)
+// ----------------------------------------------------
 function CleanAdminModule({ page, title, description }) {
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  // Products State
+  const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
   const [selectedProduct, setSelectedProduct] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState(null)
   const [productCategory, setProductCategory] = useState('all')
   const [stockFilter, setStockFilter] = useState('all')
-  const [selectedRows, setSelectedRows] = useState([])
-  const notify = (message) => { setToast(message); setTimeout(() => setToast(''), 2200) }
-  const header = <section className="page-heading"><div><div className="eyebrow">SMARTSTOCK / {page.toUpperCase()}</div><h1>{title}</h1><p>{description}</p></div><button className="button primary" onClick={() => notify(`Đã mở biểu mẫu thêm ${title.toLowerCase()}`)}><Plus size={18} /> Thêm mới</button></section>
-  if (page === 'products') { const filteredProducts = cleanProducts.filter((item) => `${item.name} ${item.category} ${item.sku}`.toLowerCase().includes(query.toLowerCase())).filter((item) => productCategory === 'all' || item.category === productCategory).filter((item) => stockFilter === 'all' || (stockFilter === 'out' ? item.stock === 0 : stockFilter === 'low' ? item.stock > 0 && item.stock < 10 : item.stock >= 10)); return selectedProduct ? <AdminProductDetail product={selectedProduct} onBack={() => setSelectedProduct(null)} onNotify={notify} /> : <>{header}<div className="admin-toolbar"><div className="admin-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm sản phẩm, SKU, mã vạch..." /></div><select className="admin-filter-select" value={productCategory} onChange={(event) => setProductCategory(event.target.value)}><option value="all">Tất cả danh mục</option><option>Điện thoại</option><option>Laptop</option><option>Phụ kiện</option><option>Tablet</option></select><select className="admin-filter-select" value={stockFilter} onChange={(event) => setStockFilter(event.target.value)}><option value="all">Tất cả tồn kho</option><option value="low">Sắp hết</option><option value="out">Hết hàng</option></select><button className="button secondary" onClick={() => notify('Đã mở trình nhập Excel')}><Upload size={15} /> Import Excel</button><button className="button ghost" onClick={() => notify('Đang xuất danh sách sản phẩm')}><Download size={15} /> Export</button></div>{selectedRows.length > 0 && <div className="bulk-bar"><strong>{selectedRows.length} sản phẩm đã chọn</strong><button onClick={() => notify('Đã mở chỉnh sửa hàng loạt')}>Chỉnh sửa hàng loạt</button><button onClick={() => notify('Đã xóa sản phẩm đã chọn')}>Xóa</button></div>}<AdminTable title={`${filteredProducts.length} sản phẩm`} columns={['', 'SẢN PHẨM', 'DANH MỤC', 'GIÁ BÁN', 'TỒN KHO', 'TRẠNG THÁI', 'QR']} rows={filteredProducts.map((item, index) => [<input className="row-check" type="checkbox" checked={selectedRows.includes(item.sku)} onChange={() => setSelectedRows((rows) => rows.includes(item.sku) ? rows.filter((sku) => sku !== item.sku) : [...rows, item.sku])} onClick={(event) => event.stopPropagation()} />, <strong><span className={`table-product-thumb ${item.color}`}><Package size={16} /></span>{item.name}<small>{item.sku}</small></strong>, item.category, item.price, item.stock, <span className={`admin-badge ${item.stock < 10 ? 'warning' : 'success'}`}>{item.stock < 10 ? 'Sắp hết' : 'Còn hàng'}</span>, <button className="qr-button" onClick={(event) => { event.stopPropagation(); notify(`Mã QR: ${item.sku}`) }}><QrCode size={15} /></button>])} onAction={notify} onRowClick={(index) => setSelectedProduct(filteredProducts[index])} />{toast && <AdminToast message={toast} />}</> }
-  if (page === 'categories') return selectedCategory ? <CategoryDetail category={selectedCategory} onBack={() => setSelectedCategory(null)} onNotify={notify} /> : <><>{header}</><div className="admin-card-grid">{['Điện thoại', 'Laptop', 'Tablet', 'Phụ kiện', 'Tai nghe', 'Màn hình'].map((item, index) => <div className="admin-info-card" key={item}><div className={`admin-card-icon icon-${index % 4}`}>{['◌', '▱', '▯', '⌁', '◉', '▤'][index]}</div><strong>{item}</strong><span>{[46, 28, 15, 39, 22, 18][index]} sản phẩm</span><button onClick={() => setSelectedCategory(item)}>Xem chi tiết <ChevronRight size={14} /></button></div>)}</div></>
-  if (page === 'inventory') return <InventoryDetail header={header} onNotify={notify} />
-  if (page === 'orders') return <OrdersDetail header={header} onNotify={notify} />
-  if (page === 'reports') return <>{header}<div className="report-kpi-grid"><AdminKpi label="Doanh thu hôm nay" value="48.280.000đ" /><AdminKpi label="Doanh thu tuần" value="128.640.000đ" /><AdminKpi label="Tăng trưởng" value="12,8%" tone="success" /></div><div className="panel clean-report-panel"><div className="panel-heading"><div><h2>Doanh thu theo ngày</h2><span>Chọn khoảng thời gian để xem dữ liệu</span></div><select><option>Tháng này</option><option>Tuần này</option><option>Năm nay</option></select></div><div className="clean-bars large">{[45, 60, 40, 76, 64, 82, 58, 91, 72, 100, 82, 67].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div></div></>
-  if (['promotions', 'reviews', 'users', 'roles', 'notifications', 'system', 'deployment', 'logs', 'warehouses', 'purchase-orders', 'suppliers', 'security', 'settings'].includes(page)) return <CleanLowerModule page={page} title={title} description={description} header={header} onNotify={notify} />
-  return <>{header}<div className="panel clean-detail-panel"><div className="admin-module-icon"><Package size={25} /></div><h2>{title}</h2><p>{page === 'system' ? 'Frontend Online · Backend API Online · Database Connected' : `Quản lý ${title.toLowerCase()} với các thao tác thêm, chỉnh sửa và theo dõi trạng thái.`}</p><div className="detail-action-row"><button className="button primary" onClick={() => notify('Thao tác đã được thực hiện')}>Tạo bản ghi mới</button><button className="button ghost" onClick={() => notify('Đã tải dữ liệu mẫu')}>Xem dữ liệu mẫu</button></div></div>{toast && <AdminToast message={toast} />}</>
+  const [showAddProductModal, setShowAddProductModal] = useState(false)
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false)
+
+  // Orders State
+  const [orders, setOrders] = useState([])
+  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [orderTab, setOrderTab] = useState('all')
+  const [showReturnModal, setShowReturnModal] = useState(false)
+
+  // Inventory State
+  const [inventory, setInventory] = useState([])
+  const [showAdjustModal, setShowAdjustModal] = useState(false)
+  const [adjustTarget, setAdjustTarget] = useState(null)
+  const [newQuantity, setNewQuantity] = useState(0)
+  const [adjustReason, setAdjustReason] = useState('')
+
+  // Suppliers & Customers & Users State
+  const [suppliers, setSuppliers] = useState([])
+  const [customers, setCustomers] = useState([])
+  const [users, setUsers] = useState([])
+  const [promotions, setPromotions] = useState([])
+  const [reviews, setReviews] = useState([])
+  const [promotionFilter, setPromotionFilter] = useState('all')
+  const [reviewFilter, setReviewFilter] = useState('all')
+  const [showPromotionModal, setShowPromotionModal] = useState(false)
+  const [editingPromotion, setEditingPromotion] = useState(null)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+
+  const notify = (msg) => {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2500)
+  }
+
+  // Load Data by Page
+  const loadModuleData = async () => {
+    setLoading(true)
+    try {
+      if (page === 'products') {
+        const [pRes, cRes, sRes] = await Promise.all([
+          api.getProducts({ search: query, pageSize: 100 }),
+          api.getCategories(),
+          api.getSuppliers({ pageSize: 100 }),
+        ])
+        setProducts(pRes?.items || pRes || [])
+        setCategories(cRes || [])
+        setSuppliers(sRes?.items || [])
+      } else if (page === 'categories') {
+        const cRes = await api.getCategories()
+        setCategories(cRes || [])
+      } else if (page === 'inventory') {
+        const invRes = await api.getInventory()
+        setInventory(invRes || [])
+      } else if (page === 'orders') {
+        const oRes = await api.getOrders({ pageSize: 50 })
+        setOrders(oRes?.items || oRes || [])
+      } else if (page === 'suppliers') {
+        const sRes = await api.getSuppliers({ pageSize: 50 })
+        setSuppliers(sRes?.items || sRes || [])
+      } else if (page === 'customers') {
+        const cuRes = await api.getCustomers({ pageSize: 50 })
+        setCustomers(cuRes?.items || cuRes || [])
+      } else if (page === 'users') {
+        const uRes = await api.getUsers()
+        setUsers(uRes || [])
+      } else if (page === 'promotions') {
+        setPromotions(await api.getPromotions())
+      } else if (page === 'reviews') {
+        const [reviewRes, productRes] = await Promise.all([
+          api.getReviews(),
+          api.getProducts({ pageSize: 100 }),
+        ])
+        setReviews(reviewRes || [])
+        setProducts(productRes?.items || productRes || [])
+      }
+    } catch (err) {
+      console.error('Error loading module data:', err)
+      notify('Lỗi tải dữ liệu: ' + err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadModuleData()
+  }, [page])
+
+  // --- PRODUCTS ACTIONS ---
+  const handleCreateProduct = async (formData) => {
+    try {
+      await api.createProduct(formData)
+      notify('Thêm sản phẩm thành công!')
+      setShowAddProductModal(false)
+      loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Lỗi khi tạo sản phẩm')
+    }
+  }
+
+  const handleDeleteProduct = async (id) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) return
+    try {
+      await api.deleteProduct(id)
+      notify('Đã xóa sản phẩm thành công!')
+      setSelectedProduct(null)
+      loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Lỗi khi xóa sản phẩm')
+    }
+  }
+
+  // --- CATEGORIES ACTIONS ---
+  const handleCreateCategory = async (catData) => {
+    const { imageFile, ...categoryData } = catData
+    try {
+      const category = await api.createCategory(categoryData)
+      setShowAddCategoryModal(false)
+      if (imageFile) {
+        try {
+          await api.uploadCategoryImage(category.id, imageFile)
+          notify('Đã tạo danh mục và tải ảnh lên!')
+        } catch (err) {
+          notify(`Danh mục đã tạo nhưng tải ảnh thất bại: ${err.message}`)
+        }
+      } else {
+        notify('Đã thêm danh mục mới!')
+      }
+      await loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Lỗi khi tạo danh mục')
+    }
+  }
+
+  const handleUploadCategoryImage = async (category, imageFile) => {
+    try {
+      await api.uploadCategoryImage(category.id, imageFile)
+      notify(`Đã cập nhật ảnh ${category.name}!`)
+      await loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Không thể tải ảnh danh mục')
+    }
+  }
+
+  const handleDeleteCategoryImage = async (category) => {
+    if (!confirm(`Gỡ ảnh của danh mục ${category.name}?`)) return
+    try {
+      await api.deleteCategoryImage(category.id)
+      notify(`Đã gỡ ảnh ${category.name}!`)
+      await loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Không thể gỡ ảnh danh mục')
+    }
+  }
+
+  const handleSavePromotion = async (promotionData) => {
+    try {
+      if (editingPromotion) {
+        await api.updatePromotion(editingPromotion.id, promotionData)
+        notify('Đã cập nhật chương trình khuyến mãi!')
+      } else {
+        await api.createPromotion(promotionData)
+        notify('Đã tạo chương trình khuyến mãi!')
+      }
+      setShowPromotionModal(false)
+      setEditingPromotion(null)
+      loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Không thể lưu khuyến mãi')
+    }
+  }
+
+  const handleDeletePromotion = async (promotion) => {
+    if (!confirm(`Xóa chương trình ${promotion.code}?`)) return
+    try {
+      await api.deletePromotion(promotion.id)
+      notify('Đã xóa chương trình khuyến mãi!')
+      loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Không thể xóa khuyến mãi')
+    }
+  }
+
+  const handleTogglePromotion = async (promotion) => {
+    try {
+      await api.updatePromotion(promotion.id, {
+        name: promotion.name,
+        code: promotion.code,
+        description: promotion.description,
+        discountType: promotion.discountType,
+        discountValue: promotion.discountValue,
+        startsAt: promotion.startsAt,
+        endsAt: promotion.endsAt,
+        isActive: !promotion.isActive,
+      })
+      notify(promotion.isActive ? 'Đã tạm dừng khuyến mãi!' : 'Đã bật khuyến mãi!')
+      loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Không thể đổi trạng thái khuyến mãi')
+    }
+  }
+
+  const handleSaveReview = async (reviewData) => {
+    try {
+      await api.createReview(reviewData)
+      notify('Đã thêm đánh giá ở trạng thái chờ duyệt!')
+      setShowReviewModal(false)
+      loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Không thể thêm đánh giá')
+    }
+  }
+
+  const handleModerateReview = async (review, isApproved) => {
+    try {
+      await api.moderateReview(review.id, isApproved)
+      notify(isApproved ? 'Đã duyệt đánh giá!' : 'Đã ẩn đánh giá!')
+      loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Không thể cập nhật trạng thái đánh giá')
+    }
+  }
+
+  const handleDeleteReview = async (review) => {
+    if (!confirm('Xóa vĩnh viễn đánh giá này?')) return
+    try {
+      await api.deleteReview(review.id)
+      notify('Đã xóa đánh giá!')
+      loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Không thể xóa đánh giá')
+    }
+  }
+
+  // --- INVENTORY ADJUSTMENT ---
+  const handleAdjustInventory = async () => {
+    if (!adjustTarget) return
+    try {
+      await api.adjustInventory(adjustTarget.productId, Number(newQuantity), adjustReason || 'Kiểm kê kho')
+      notify('Điều chỉnh tồn kho thành công!')
+      setShowAdjustModal(false)
+      setAdjustTarget(null)
+      loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Lỗi khi điều chỉnh tồn kho')
+    }
+  }
+
+  // --- ORDERS ACTIONS ---
+  const handleConfirmOrder = async (orderId) => {
+    try {
+      await api.confirmOrder(orderId)
+      notify('Đã xác nhận đơn hàng và trừ tồn kho!')
+      loadModuleData()
+      if (selectedOrder) {
+        setSelectedOrder((prev) => ({ ...prev, status: 'confirmed' }))
+      }
+    } catch (err) {
+      alert(err.message || 'Lỗi khi xác nhận đơn hàng')
+    }
+  }
+
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    try {
+      await api.updateOrderStatus(orderId, newStatus)
+      notify(`Đã chuyển đơn hàng sang trạng thái: ${newStatus}`)
+      loadModuleData()
+      if (selectedOrder) {
+        setSelectedOrder((prev) => ({ ...prev, status: newStatus }))
+      }
+    } catch (err) {
+      alert(err.message || 'Lỗi khi cập nhật trạng thái')
+    }
+  }
+
+  const handleCancelOrder = async (orderId) => {
+    if (!confirm('Bạn có chắc muốn hủy đơn hàng này và hoàn tồn kho?')) return
+    try {
+      await api.cancelOrder(orderId)
+      notify('Đã hủy đơn hàng thành công!')
+      loadModuleData()
+      if (selectedOrder) {
+        setSelectedOrder((prev) => ({ ...prev, status: 'cancelled' }))
+      }
+    } catch (err) {
+      alert(err.message || 'Lỗi khi hủy đơn hàng')
+    }
+  }
+
+  const handleReturnOrder = async (orderId, returnData) => {
+    try {
+      const updatedOrder = await api.returnOrder(orderId, returnData)
+      setSelectedOrder(updatedOrder)
+      setShowReturnModal(false)
+      notify(updatedOrder.status === 'returned' ? 'Đã hoàn trả toàn bộ đơn hàng!' : 'Đã ghi nhận hoàn trả một phần!')
+      await loadModuleData()
+    } catch (err) {
+      alert(err.message || 'Không thể hoàn trả đơn hàng')
+    }
+  }
+
+  const header = (
+    <section className="page-heading">
+      <div>
+        <div className="eyebrow">SMARTSTOCK / {page.toUpperCase()}</div>
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="button ghost" onClick={loadModuleData} disabled={loading} title="Làm mới dữ liệu">
+          <RefreshCw size={15} className={loading ? 'spin' : ''} />
+        </button>
+        {page === 'products' && (
+          <button className="button primary" onClick={() => setShowAddProductModal(true)}>
+            <Plus size={18} /> Thêm sản phẩm
+          </button>
+        )}
+        {page === 'categories' && (
+          <button className="button primary" onClick={() => setShowAddCategoryModal(true)}>
+            <Plus size={18} /> Thêm danh mục
+          </button>
+        )}
+        {page === 'promotions' && (
+          <button className="button primary" onClick={() => { setEditingPromotion(null); setShowPromotionModal(true) }}>
+            <Plus size={18} /> Tạo khuyến mãi
+          </button>
+        )}
+        {page === 'reviews' && (
+          <button className="button primary" onClick={() => setShowReviewModal(true)}>
+            <Plus size={18} /> Nhập đánh giá
+          </button>
+        )}
+      </div>
+    </section>
+  )
+
+  // 1. PRODUCTS PAGE
+  if (page === 'products') {
+    if (selectedProduct) {
+      return (
+        <AdminProductDetail
+          product={selectedProduct}
+          onBack={() => setSelectedProduct(null)}
+          onDelete={() => handleDeleteProduct(selectedProduct.id)}
+          onNotify={notify}
+        />
+      )
+    }
+
+    const filtered = products
+      .filter((it) => `${it.name} ${it.categoryName || ''} ${it.productCode}`.toLowerCase().includes(query.toLowerCase()))
+      .filter((it) => productCategory === 'all' || (it.categoryName || '') === productCategory)
+      .filter((it) =>
+        stockFilter === 'all'
+          ? true
+          : stockFilter === 'out'
+          ? it.quantity === 0
+          : stockFilter === 'low'
+          ? it.quantity > 0 && it.quantity <= it.minStock
+          : it.quantity > it.minStock
+      )
+
+    return (
+      <>
+        {header}
+        <div className="admin-toolbar">
+          <div className="admin-search">
+            <Search size={17} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Tìm theo tên, mã SKU, barcode..."
+            />
+          </div>
+          <select
+            className="admin-filter-select"
+            value={productCategory}
+            onChange={(e) => setProductCategory(e.target.value)}
+          >
+            <option value="all">Tất cả danh mục</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+          <select
+            className="admin-filter-select"
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value)}
+          >
+            <option value="all">Tất cả tồn kho</option>
+            <option value="low">Sắp hết hàng</option>
+            <option value="out">Đã hết hàng</option>
+          </select>
+        </div>
+
+        {loading ? (
+          <div className="api-loading-state"><RefreshCw className="spin" size={24} /> Đang tải dữ liệu...</div>
+        ) : (
+          <AdminTable
+            title={`${filtered.length} sản phẩm trong kho`}
+            columns={['MÃ SKU', 'TÊN SẢN PHẨM', 'DANH MỤC', 'GIÁ BÁN', 'GIÁ VỐN', 'TỒN KHO', 'TRẠNG THÁI']}
+            rows={filtered.map((it) => [
+              <code>{it.productCode}</code>,
+              <strong>{it.name}</strong>,
+              it.categoryName || 'Chung',
+              formatVND(it.price),
+              formatVND(it.costPrice),
+              <strong>{it.quantity} {it.unit || 'cái'}</strong>,
+              <span className={`admin-badge ${it.quantity === 0 ? 'danger' : it.quantity <= it.minStock ? 'warning' : 'success'}`}>
+                {it.quantity === 0 ? 'Hết hàng' : it.quantity <= it.minStock ? 'Sắp hết' : 'Có sẵn'}
+              </span>,
+            ])}
+            onRowClick={(idx) => setSelectedProduct(filtered[idx])}
+            onAction={notify}
+          />
+        )}
+
+        {showAddProductModal && (
+          <AddProductModal
+            categories={categories}
+            suppliers={suppliers}
+            onClose={() => setShowAddProductModal(false)}
+            onSave={handleCreateProduct}
+          />
+        )}
+        {toast && <AdminToast message={toast} />}
+      </>
+    )
+  }
+
+  // 2. CATEGORIES PAGE
+  if (page === 'categories') {
+    return (
+      <>
+        {header}
+        <div className="admin-card-grid">
+          {categories.map((c, idx) => (
+            <div className="admin-info-card" key={c.id}>
+              <div className={`category-image-frame ${c.imageUrl ? 'has-image' : ''}`}>
+                {c.imageUrl ? (
+                  <img src={c.imageUrl} alt={`Ảnh ${c.name}`} />
+                ) : (
+                  <span className={`admin-card-icon icon-${idx % 4}`}>{c.icon || '📦'}</span>
+                )}
+              </div>
+              <strong>{c.name}</strong>
+              <span>{c.description || 'Chưa có mô tả'}</span>
+              <small>{c.productCount ?? 0} sản phẩm liên kết</small>
+              <label className="category-image-action">
+                <Upload size={14} /> {c.imageUrl ? 'Thay ảnh' : 'Tải ảnh sản phẩm'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  aria-label={`${c.imageUrl ? 'Thay ảnh' : 'Tải ảnh'} cho ${c.name}`}
+                  onChange={(event) => {
+                    const imageFile = event.target.files?.[0]
+                    if (imageFile) handleUploadCategoryImage(c, imageFile)
+                    event.target.value = ''
+                  }}
+                />
+              </label>
+              {c.imageUrl && (
+                <button
+                  className="category-image-remove"
+                  title="Gỡ ảnh và dùng icon dự phòng"
+                  aria-label={`Gỡ ảnh ${c.name}`}
+                  onClick={() => handleDeleteCategoryImage(c)}
+                >
+                  <X size={14} /> Gỡ ảnh
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {showAddCategoryModal && (
+          <AddCategoryModal
+            onClose={() => setShowAddCategoryModal(false)}
+            onSave={handleCreateCategory}
+          />
+        )}
+        {toast && <AdminToast message={toast} />}
+      </>
+    )
+  }
+
+  if (page === 'promotions') {
+    const now = new Date()
+    const getStatus = (promotion) => {
+      if (!promotion.isActive) return 'paused'
+      if (new Date(promotion.startsAt) > now) return 'upcoming'
+      if (new Date(promotion.endsAt) < now) return 'ended'
+      return 'running'
+    }
+    const filteredPromotions = promotions.filter((promotion) => {
+      const matchesQuery = `${promotion.name} ${promotion.code}`.toLowerCase().includes(query.toLowerCase())
+      return matchesQuery && (promotionFilter === 'all' || getStatus(promotion) === promotionFilter)
+    })
+    const runningCount = promotions.filter((promotion) => getStatus(promotion) === 'running').length
+
+    return (
+      <>
+        {header}
+        <div className="admin-kpi-row">
+          <AdminKpi label="Tổng chương trình" value={String(promotions.length)} />
+          <AdminKpi label="Đang áp dụng" value={String(runningCount)} tone="success" />
+          <AdminKpi label="Tạm dừng / kết thúc" value={String(promotions.length - runningCount)} tone="warning" />
+        </div>
+        <div className="admin-toolbar">
+          <div className="admin-search">
+            <Search size={17} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên hoặc mã khuyến mãi..." />
+          </div>
+          <select className="admin-filter-select" value={promotionFilter} onChange={(event) => setPromotionFilter(event.target.value)}>
+            <option value="all">Tất cả trạng thái</option>
+            <option value="running">Đang áp dụng</option>
+            <option value="upcoming">Sắp diễn ra</option>
+            <option value="paused">Tạm dừng</option>
+            <option value="ended">Đã kết thúc</option>
+          </select>
+        </div>
+        {loading ? (
+          <div className="api-loading-state"><RefreshCw className="spin" size={24} /> Đang tải khuyến mãi...</div>
+        ) : (
+          <AdminTable
+            title={`${filteredPromotions.length} chương trình khuyến mãi`}
+            columns={['MÃ', 'CHƯƠNG TRÌNH', 'MỨC GIẢM', 'THỜI GIAN', 'TRẠNG THÁI', 'THAO TÁC']}
+            hideActions
+            rows={filteredPromotions.map((promotion) => {
+              const status = getStatus(promotion)
+              const statusLabels = { running: 'Đang áp dụng', upcoming: 'Sắp diễn ra', paused: 'Tạm dừng', ended: 'Đã kết thúc' }
+              return [
+                <code>{promotion.code}</code>,
+                <div><strong>{promotion.name}</strong><small className="module-subtext">{promotion.description || 'Không có mô tả'}</small></div>,
+                <strong>{promotion.discountType === 'percent' ? `${promotion.discountValue}%` : formatVND(promotion.discountValue)}</strong>,
+                <span>{formatDate(promotion.startsAt)}<br />đến {formatDate(promotion.endsAt)}</span>,
+                <span className={`admin-badge ${status === 'running' ? 'success' : status === 'upcoming' ? 'warning' : 'danger'}`}>{statusLabels[status]}</span>,
+                <div className="module-row-actions">
+                  <button className="module-icon-button" title="Chỉnh sửa" aria-label={`Chỉnh sửa ${promotion.code}`} onClick={() => { setEditingPromotion(promotion); setShowPromotionModal(true) }}><Edit size={15} /></button>
+                  <button className="module-icon-button" title={promotion.isActive ? 'Tạm dừng' : 'Bật khuyến mãi'} aria-label={promotion.isActive ? 'Tạm dừng' : 'Bật khuyến mãi'} onClick={() => handleTogglePromotion(promotion)}>{promotion.isActive ? <X size={15} /> : <Check size={15} />}</button>
+                  <button className="module-icon-button danger" title="Xóa" aria-label={`Xóa ${promotion.code}`} onClick={() => handleDeletePromotion(promotion)}><Trash2 size={15} /></button>
+                </div>,
+              ]
+            })}
+          />
+        )}
+        {showPromotionModal && (
+          <PromotionModal
+            promotion={editingPromotion}
+            onClose={() => { setShowPromotionModal(false); setEditingPromotion(null) }}
+            onSave={handleSavePromotion}
+          />
+        )}
+        {toast && <AdminToast message={toast} />}
+      </>
+    )
+  }
+
+  if (page === 'reviews') {
+    const filteredReviews = reviews.filter((review) => {
+      const matchesQuery = `${review.customerName} ${review.customerEmail || ''} ${review.productName} ${review.comment}`.toLowerCase().includes(query.toLowerCase())
+      return matchesQuery && (reviewFilter === 'all' || (reviewFilter === 'approved' ? review.isApproved : !review.isApproved))
+    })
+    const pendingCount = reviews.filter((review) => !review.isApproved).length
+    const averageRating = reviews.length
+      ? (reviews.reduce((total, review) => total + review.rating, 0) / reviews.length).toFixed(1)
+      : '0.0'
+
+    return (
+      <>
+        {header}
+        <div className="admin-kpi-row">
+          <AdminKpi label="Tổng đánh giá" value={String(reviews.length)} />
+          <AdminKpi label="Chờ duyệt" value={String(pendingCount)} tone="warning" />
+          <AdminKpi label="Điểm trung bình" value={`${averageRating} / 5`} tone="success" />
+        </div>
+        <div className="admin-toolbar">
+          <div className="admin-search">
+            <Search size={17} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm khách hàng, sản phẩm hoặc nội dung..." />
+          </div>
+          <select className="admin-filter-select" value={reviewFilter} onChange={(event) => setReviewFilter(event.target.value)}>
+            <option value="all">Tất cả đánh giá</option>
+            <option value="pending">Chờ duyệt</option>
+            <option value="approved">Đã duyệt</option>
+          </select>
+        </div>
+        {loading ? (
+          <div className="api-loading-state"><RefreshCw className="spin" size={24} /> Đang tải đánh giá...</div>
+        ) : (
+          <AdminTable
+            title={`${filteredReviews.length} đánh giá`}
+            columns={['SẢN PHẨM', 'KHÁCH HÀNG', 'ĐIỂM', 'NỘI DUNG', 'NGÀY GỬI', 'TRẠNG THÁI', 'THAO TÁC']}
+            hideActions
+            rows={filteredReviews.map((review) => [
+              <div><strong>{review.productName}</strong><small className="module-subtext">{review.productCode}</small></div>,
+              <div><strong>{review.customerName}</strong><small className="module-subtext">{review.customerEmail || 'Không có email'}</small></div>,
+              <span className="review-stars" aria-label={`${review.rating} trên 5 sao`}>{'★'.repeat(review.rating)}<span>{'★'.repeat(5 - review.rating)}</span></span>,
+              <span className="review-comment">{review.comment}</span>,
+              formatDate(review.createdAt),
+              <span className={`admin-badge ${review.isApproved ? 'success' : 'warning'}`}>{review.isApproved ? 'Đã duyệt' : 'Chờ duyệt'}</span>,
+              <div className="module-row-actions">
+                <button className="module-icon-button" title={review.isApproved ? 'Ẩn đánh giá' : 'Duyệt đánh giá'} aria-label={review.isApproved ? 'Ẩn đánh giá' : 'Duyệt đánh giá'} onClick={() => handleModerateReview(review, !review.isApproved)}>{review.isApproved ? <X size={15} /> : <Check size={15} />}</button>
+                <button className="module-icon-button danger" title="Xóa" aria-label="Xóa đánh giá" onClick={() => handleDeleteReview(review)}><Trash2 size={15} /></button>
+              </div>,
+            ])}
+          />
+        )}
+        {showReviewModal && (
+          <ReviewModal
+            products={products}
+            onClose={() => setShowReviewModal(false)}
+            onSave={handleSaveReview}
+          />
+        )}
+        {toast && <AdminToast message={toast} />}
+      </>
+    )
+  }
+
+  // 3. INVENTORY PAGE
+  if (page === 'inventory') {
+    const lowCount = inventory.filter((i) => i.stockStatus === 'low').length
+    const outCount = inventory.filter((i) => i.stockStatus === 'out').length
+
+    return (
+      <>
+        {header}
+        <div className="admin-kpi-row">
+          <AdminKpi label="Tổng mặt hàng theo dõi" value={inventory.length.toString()} />
+          <AdminKpi label="Sắp hết hàng" value={lowCount.toString()} tone="warning" />
+          <AdminKpi label="Đã hết hàng" value={outCount.toString()} tone="danger" />
+        </div>
+
+        <AdminTable
+          title={`Kiểm kê kho &bull; ${inventory.length} sản phẩm`}
+          columns={['MÃ SẢN PHẨM', 'TÊN SẢN PHẨM', 'DANH MỤC', 'TỒN KHO HIỆN TẠI', 'ĐỊNH MỨC TỐI THIỂU', 'TRẠNG THÁI', 'THAO TÁC']}
+          rows={inventory.map((row) => [
+            <code>{row.productCode}</code>,
+            <strong>{row.productName}</strong>,
+            row.categoryName,
+            <strong>{row.quantity}</strong>,
+            row.minStock,
+            <span className={`admin-badge ${row.stockStatus === 'out' ? 'danger' : row.stockStatus === 'low' ? 'warning' : 'success'}`}>
+              {row.stockStatus === 'out' ? 'Hết hàng' : row.stockStatus === 'low' ? 'Sắp hết' : 'An toàn'}
+            </span>,
+            <button
+              className="button secondary"
+              style={{ minHeight: 28, fontSize: 11, padding: '0 8px' }}
+              onClick={(e) => {
+                e.stopPropagation()
+                setAdjustTarget(row)
+                setNewQuantity(row.quantity)
+                setShowAdjustModal(true)
+              }}
+            >
+              Điều chỉnh
+            </button>,
+          ])}
+          onAction={notify}
+        />
+
+        {showAdjustModal && adjustTarget && (
+          <div className="modal-overlay">
+            <div className="modal-box">
+              <div className="modal-head">
+                <h3>Điều chỉnh tồn kho: {adjustTarget.productName}</h3>
+                <button className="modal-close" onClick={() => setShowAdjustModal(false)}><X size={18} /></button>
+              </div>
+              <div className="modal-body">
+                <div className="form-field">
+                  <label>Mã sản phẩm: {adjustTarget.productCode}</label>
+                  <span>Tồn kho hiện tại trong hệ thống: <b>{adjustTarget.quantity}</b></span>
+                </div>
+                <div className="form-field">
+                  <label>Số lượng tồn kho mới sau kiểm kê</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newQuantity}
+                    onChange={(e) => setNewQuantity(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-field">
+                  <label>Lý do điều chỉnh</label>
+                  <input
+                    type="text"
+                    value={adjustReason}
+                    onChange={(e) => setAdjustReason(e.target.value)}
+                    placeholder="Kiểm đếm định kỳ, hàng hỏng, hàng trả về..."
+                  />
+                </div>
+              </div>
+              <div className="modal-foot">
+                <button className="button ghost" onClick={() => setShowAdjustModal(false)}>Hủy</button>
+                <button className="button primary" onClick={handleAdjustInventory}>Lưu điều chỉnh</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {toast && <AdminToast message={toast} />}
+      </>
+    )
+  }
+
+  // 4. ORDERS PAGE
+  if (page === 'orders') {
+    if (selectedOrder) {
+      return (
+        <>
+          <button className="back-admin" onClick={() => setSelectedOrder(null)}>
+            &larr; Quay lại danh sách đơn hàng
+          </button>
+          <section className="page-heading">
+            <div>
+              <div className="eyebrow">ORDER DETAILS &bull; #{selectedOrder.orderCode}</div>
+              <h1>Đơn hàng: {selectedOrder.orderCode}</h1>
+              <p>Khách hàng: {selectedOrder.customerName || 'Khách lẻ'} &bull; Ngày: {formatDate(selectedOrder.createdAt)}</p>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {selectedOrder.status === 'pending' && (
+                <button className="button primary" onClick={() => handleConfirmOrder(selectedOrder.id)}>
+                  Xác nhận đơn &amp; Trừ kho
+                </button>
+              )}
+              {selectedOrder.status === 'confirmed' && (
+                <button className="button primary" onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'completed')}>
+                  Hoàn tất giao hàng
+                </button>
+              )}
+              {['confirmed', 'completed', 'partially_returned'].includes(selectedOrder.status) && (
+                <button className="button ghost" onClick={() => setShowReturnModal(true)}>
+                  <RefreshCw size={15} /> Hoàn hàng
+                </button>
+              )}
+              {['pending', 'confirmed', 'completed'].includes(selectedOrder.status) && (
+                <button className="button danger" onClick={() => handleCancelOrder(selectedOrder.id)}>
+                  Hủy đơn hàng
+                </button>
+              )}
+            </div>
+          </section>
+
+          <div className="order-timeline">
+            <TimelineStep label="Chờ xử lý" done={true} />
+            <TimelineStep label="Đã xác nhận" done={['confirmed', 'shipping', 'completed'].includes(selectedOrder.status)} />
+            <TimelineStep label="Đang giao" done={['shipping', 'completed'].includes(selectedOrder.status)} />
+            <TimelineStep label="Hoàn tất" done={['completed', 'partially_returned', 'returned'].includes(selectedOrder.status)} />
+          </div>
+
+          <section className="panel order-detail-card">
+            <h2>Các mặt hàng trong đơn</h2>
+            {selectedOrder.details?.map((d) => (
+              <div className="best-seller-row" key={d.id}>
+                <Package size={18} />
+                <span>{d.productName} &times; {d.quantity}{d.returnedQuantity > 0 ? ` · đã hoàn ${d.returnedQuantity}, còn ${d.quantity - d.returnedQuantity}` : ''}</span>
+                <strong>{formatVND(d.total)}</strong>
+              </div>
+            ))}
+            <hr />
+            <div className="order-total-row">
+              <span>Phương thức thanh toán:</span>
+              <strong>{selectedOrder.paymentMethod || 'COD'}</strong>
+            </div>
+            <div className="order-total-row">
+              <span>Tổng tiền đơn hàng:</span>
+              <strong>{formatVND(selectedOrder.finalAmount)}</strong>
+            </div>
+          </section>
+          {showReturnModal && (
+            <ReturnOrderModal
+              order={selectedOrder}
+              onClose={() => setShowReturnModal(false)}
+              onSave={(returnData) => handleReturnOrder(selectedOrder.id, returnData)}
+            />
+          )}
+        </>
+      )
+    }
+
+    const filteredOrders = orders.filter((o) => {
+      if (orderTab === 'all') return true
+      return o.status === orderTab
+    })
+
+    return (
+      <>
+        {header}
+        <div className="order-tabs">
+          <button className={orderTab === 'all' ? 'active' : ''} onClick={() => setOrderTab('all')}>
+            Tất cả <b>{orders.length}</b>
+          </button>
+          <button className={orderTab === 'pending' ? 'active' : ''} onClick={() => setOrderTab('pending')}>
+            Chờ xử lý <b>{orders.filter((o) => o.status === 'pending').length}</b>
+          </button>
+          <button className={orderTab === 'confirmed' ? 'active' : ''} onClick={() => setOrderTab('confirmed')}>
+            Đã xác nhận <b>{orders.filter((o) => o.status === 'confirmed').length}</b>
+          </button>
+          <button className={orderTab === 'completed' ? 'active' : ''} onClick={() => setOrderTab('completed')}>
+            Hoàn tất <b>{orders.filter((o) => o.status === 'completed').length}</b>
+          </button>
+          <button className={orderTab === 'cancelled' ? 'active' : ''} onClick={() => setOrderTab('cancelled')}>
+            Đã hủy <b>{orders.filter((o) => o.status === 'cancelled').length}</b>
+          </button>
+          <button className={orderTab === 'partially_returned' ? 'active' : ''} onClick={() => setOrderTab('partially_returned')}>
+            Hoàn một phần <b>{orders.filter((o) => o.status === 'partially_returned').length}</b>
+          </button>
+          <button className={orderTab === 'returned' ? 'active' : ''} onClick={() => setOrderTab('returned')}>
+            Đã hoàn <b>{orders.filter((o) => o.status === 'returned').length}</b>
+          </button>
+        </div>
+
+        <AdminTable
+          title="Danh sách đơn hàng từ Backend"
+          columns={['MÃ ĐƠN', 'KHÁCH HÀNG', 'NGƯỜI TẠO', 'THỜI GIAN', 'TỔNG TIỀN', 'TRẠNG THÁI']}
+          rows={filteredOrders.map((o) => [
+            <strong>{o.orderCode}</strong>,
+            o.customerName || 'Khách lẻ',
+            o.employeeName || 'Hệ thống',
+            formatDate(o.createdAt),
+            <strong>{formatVND(o.finalAmount)}</strong>,
+            <span className={`admin-badge ${o.status === 'completed' || o.status === 'returned' ? 'success' : o.status === 'cancelled' ? 'danger' : o.status === 'partially_returned' ? 'warning' : 'info'}`}>
+              {o.status === 'pending' ? 'Chờ xác nhận' : o.status === 'confirmed' ? 'Đã xác nhận' : o.status === 'completed' ? 'Hoàn tất' : o.status === 'partially_returned' ? 'Hoàn một phần' : o.status === 'returned' ? 'Đã hoàn' : o.status}
+            </span>,
+          ])}
+          onRowClick={(idx) => setSelectedOrder(filteredOrders[idx])}
+          onAction={notify}
+        />
+        {toast && <AdminToast message={toast} />}
+      </>
+    )
+  }
+
+  // 5. SUPPLIERS PAGE
+  if (page === 'suppliers') {
+    return (
+      <>
+        {header}
+        <AdminTable
+          title={`Nhà cung cấp đối tác &bull; ${suppliers.length} đối tác`}
+          columns={['MÃ NCC', 'TÊN NHÀ CUNG CẤP', 'LIÊN HỆ', 'EMAIL', 'ĐỊA CHỈ', 'TRẠNG THÁI']}
+          rows={suppliers.map((s) => [
+            <code>{s.supplierCode}</code>,
+            <strong>{s.name}</strong>,
+            `${s.contactPerson || ''} (${s.phone || ''})`,
+            s.email || '-',
+            s.address || '-',
+            <span className="admin-badge success">{s.status || 'Đang hợp tác'}</span>,
+          ])}
+          onAction={notify}
+        />
+        {toast && <AdminToast message={toast} />}
+      </>
+    )
+  }
+
+  // 6. CUSTOMERS PAGE
+  if (page === 'customers') {
+    return (
+      <>
+        {header}
+        <AdminTable
+          title={`Khách hàng đã đăng ký &bull; ${customers.length} khách hàng`}
+          columns={['MÃ KH', 'HỌ VÀ TÊN', 'ĐIỆN THOẠI', 'EMAIL', 'ĐỊA CHỈ', 'DOANH SỐ MUA']}
+          rows={customers.map((c) => [
+            <code>{c.customerCode}</code>,
+            <strong>{c.name}</strong>,
+            c.phone || '-',
+            c.email || '-',
+            c.address || '-',
+            formatVND(c.totalPurchase),
+          ])}
+          onAction={notify}
+        />
+        {toast && <AdminToast message={toast} />}
+      </>
+    )
+  }
+
+  // 7. USERS PAGE
+  if (page === 'users') {
+    return (
+      <>
+        {header}
+        <AdminTable
+          title={`Tài khoản hệ thống &bull; ${users.length} tài khoản`}
+          columns={['TÊN ĐĂNG NHẬP', 'HỌ VÀ TÊN', 'EMAIL', 'SỐ ĐIỆN THOẠI', 'VAI TRÒ', 'TRẠNG THÁI']}
+          rows={users.map((u) => [
+            <code>{u.username}</code>,
+            <strong>{u.fullName}</strong>,
+            u.email,
+            u.phone || '-',
+            <span className="role-badge">{u.role}</span>,
+            <span className={`admin-badge ${u.isActive ? 'success' : 'danger'}`}>
+              {u.isActive ? 'Hoạt động' : 'Đã khóa'}
+            </span>,
+          ])}
+          onAction={notify}
+        />
+        {toast && <AdminToast message={toast} />}
+      </>
+    )
+  }
+
+  // 8. NOTIFICATIONS PAGE
+  if (page === 'notifications') {
+    return <NotificationCenter header={header} onNotify={notify} />
+  }
+
+  // 9. SYSTEM HEALTH
+  if (page === 'system') {
+    return <SystemHealth header={header} />
+  }
+
+  // 10. LOWER MODULES & SETTINGS
+  return <CleanLowerModule page={page} title={title} description={description} header={header} onNotify={notify} />
 }
 
-function AdminTable({ title, columns, rows, onAction, onRowClick }) { return <section className="panel admin-table-panel"><div className="table-meta"><strong>{title}</strong><span>Cập nhật vừa xong</span></div><table><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}<th /></tr></thead><tbody>{rows.map((row, index) => <tr key={index} className={onRowClick ? 'clickable-row' : ''} onClick={() => onRowClick?.(index)}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}<td><button className="admin-more" onClick={(event) => { event.stopPropagation(); onAction('Đã mở menu thao tác') }}>•••</button></td></tr>)}</tbody></table><div className="admin-pagination"><span>Hiển thị 1-5 trong 128</span><button>‹</button><button className="active">1</button><button>2</button><button>3</button><button>›</button></div></section> }
-function AdminProductDetail({ product, onBack, onNotify }) { return <><button className="back-admin" onClick={onBack}>← Quay lại danh sách sản phẩm</button><section className="product-admin-detail"><div className={`admin-detail-visual ${product.color}`}><Package size={100} /></div><div className="admin-detail-copy"><div className="eyebrow">PRODUCT DETAIL</div><h1>{product.name}</h1><div className="detail-price-admin">{product.price}</div><div className="detail-field-grid"><div><span>SKU</span><strong>{product.sku}</strong></div><div><span>Danh mục</span><strong>{product.category}</strong></div><div><span>Nhà cung cấp</span><strong>SmartTech Distribution</strong></div><div><span>Tồn kho</span><strong>{product.stock} sản phẩm</strong></div></div><p>Sản phẩm chính hãng, bảo hành 12 tháng. Hàng được kiểm tra trước khi nhập kho và sẵn sàng giao trong ngày.</p><div className="detail-action-row"><button className="button primary" onClick={() => onNotify('Đã lưu thay đổi sản phẩm')}>Chỉnh sửa sản phẩm</button><button className="button danger" onClick={() => onNotify('Đã mở xác nhận xóa sản phẩm')}>Xóa sản phẩm</button></div></div></section><section className="panel admin-table-panel detail-history"><div className="table-meta"><strong>Lịch sử nhập / xuất</strong><span>{product.name}</span></div><table><thead><tr><th>LOẠI</th><th>SỐ LƯỢNG</th><th>NGƯỜI THỰC HIỆN</th><th>THỜI GIAN</th></tr></thead><tbody><tr><td><span className="admin-badge success">Nhập kho</span></td><td>+40</td><td>Cường</td><td>24/06/2024, 09:30</td></tr><tr><td><span className="admin-badge danger">Xuất kho</span></td><td>-22</td><td>Trần Minh</td><td>23/06/2024, 16:42</td></tr></tbody></table></section></> }
-function AdminKpi({ label, value, tone = 'default' }) { return <div className={`admin-kpi ${tone}`}><span>{label}</span><strong>{value}</strong><small>↗ 12,8% so với kỳ trước</small></div> }
-function AdminToast({ message }) { return <div className="admin-toast"><Check size={15} />{message}</div> }
+// ----------------------------------------------------
+// PRODUCT DETAIL VIEW & MODALS
+// ----------------------------------------------------
+function AdminProductDetail({ product, onBack, onDelete, onNotify }) {
+  return (
+    <>
+      <button className="back-admin" onClick={onBack}>
+        &larr; Quay lại danh sách sản phẩm
+      </button>
+      <section className="product-admin-detail">
+        <div className={`admin-detail-visual ${product.color || 'midnight'}`}>
+          <Package size={100} />
+        </div>
+        <div className="admin-detail-copy">
+          <div className="eyebrow">PRODUCT SKU &bull; {product.productCode}</div>
+          <h1>{product.name}</h1>
+          <div className="detail-price-admin">{formatVND(product.price)}</div>
+          <div className="detail-field-grid">
+            <div>
+              <span>MÃ SKU</span>
+              <strong>{product.productCode}</strong>
+            </div>
+            <div>
+              <span>DANH MỤC</span>
+              <strong>{product.categoryName || 'Mặc định'}</strong>
+            </div>
+            <div>
+              <span>NHÀ CUNG CẤP</span>
+              <strong>{product.supplierName || 'Chính hãng'}</strong>
+            </div>
+            <div>
+              <span>TỒN KHO HIỆN TẠI</span>
+              <strong>{product.quantity} {product.unit || 'cái'}</strong>
+            </div>
+          </div>
+          <p>{product.description || 'Sản phẩm chính hãng, phân phối qua hệ thống SmartStock.'}</p>
+          <div className="detail-action-row">
+            <button className="button danger" onClick={onDelete}>
+              <Trash2 size={16} /> Xóa sản phẩm
+            </button>
+          </div>
+        </div>
+      </section>
+    </>
+  )
+}
 
-function CategoryDetail({ category, onBack, onNotify }) { const items = cleanProducts.filter((item) => category === 'Điện thoại' ? item.category === 'Điện thoại' : item.category === category).length ? cleanProducts.filter((item) => category === 'Điện thoại' ? item.category === 'Điện thoại' : item.category === category) : cleanProducts; return <><button className="back-admin" onClick={onBack}>← Quay lại danh mục</button><section className="page-heading"><div><div className="eyebrow">CATEGORY DETAIL</div><h1>Danh mục: {category}</h1><p>Quản lý sản phẩm thuộc danh mục {category}.</p></div><button className="button primary" onClick={() => onNotify('Đã mở biểu mẫu thêm sản phẩm')}><Plus size={18} /> Thêm sản phẩm</button></section><div className="admin-kpi-row"><AdminKpi label="Tổng sản phẩm" value={category === 'Điện thoại' ? '46' : '28'} /><AdminKpi label="Đang bán" value="42" tone="success" /><AdminKpi label="Hết hàng" value="4" tone="danger" /><AdminKpi label="Giá trung bình" value="12.500.000đ" /></div><AdminTable title={`${items.length} sản phẩm trong danh mục`} columns={['STT / SẢN PHẨM', 'GIÁ', 'TỒN KHO', 'TRẠNG THÁI']} rows={items.map((item, index) => [<strong>{index + 1}. {item.name}<small>{item.sku}</small></strong>, item.price, item.stock, <span className={`admin-badge ${item.stock ? 'success' : 'danger'}`}>{item.stock ? 'Còn hàng' : 'Hết hàng'}</span>])} onAction={onNotify} /></> }
+function ReturnOrderModal({ order, onClose, onSave }) {
+  const [quantities, setQuantities] = useState(() => Object.fromEntries(
+    order.details.map((detail) => [detail.id, 0])
+  ))
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+  const refundableDetails = order.details.filter((detail) => detail.quantity > (detail.returnedQuantity || 0))
 
-function InventoryDetail({ header, onNotify }) { const rows = [['iPhone 15 Pro Max', 'IP15PM-256-TI', '18', '10', 'Bình thường', 'success'], ['MacBook Air M3 15 inch', 'MBA-M3-15-SLV', '7', '10', 'Sắp hết', 'danger'], ['Sony WH-1000XM5', 'SONY-WH5-BLK', '24', '15', 'Bình thường', 'success'], ['Samsung Galaxy S24 Ultra', 'SS-S24U-512', '0', '8', 'Hết hàng', 'danger']]; return <>{header}<div className="admin-kpi-row"><AdminKpi label="Tổng sản phẩm" value="856" /><AdminKpi label="Sắp hết" value="24" tone="warning" /><AdminKpi label="Hết hàng" value="8" tone="danger" /></div><div className="admin-toolbar"><div className="admin-search"><Search size={17} /><input placeholder="Tìm sản phẩm hoặc SKU..." /></div><button className="button secondary" onClick={() => onNotify('Đã mở phiếu nhập kho')}><Plus size={16} /> Nhập kho</button><button className="button danger" onClick={() => onNotify('Đã mở phiếu xuất kho')}>− Xuất kho</button></div><AdminTable title="Kho chính · 1.284 sản phẩm" columns={['SẢN PHẨM', 'SKU', 'TỒN KHO', 'TỐI THIỂU', 'TRẠNG THÁI']} rows={rows.map((row) => [<strong>{row[0]}</strong>, row[1], row[2], row[3], <span className={`admin-badge ${row[5]}`}>{row[4]}</span>])} onAction={onNotify} /></> }
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    const details = refundableDetails
+      .map((detail) => ({ productId: detail.productId, quantity: Number(quantities[detail.id]) || 0 }))
+      .filter((detail) => detail.quantity > 0)
 
-function OrdersDetail({ header, onNotify }) { const [selected, setSelected] = useState(false); return selected ? <><button className="back-admin" onClick={() => setSelected(false)}>← Quay lại đơn hàng</button><section className="page-heading"><div><div className="eyebrow">ORDER DETAIL</div><h1>#DH000128</h1><p>Khách hàng: Nguyễn Minh Anh · COD</p></div><button className="button primary" onClick={() => onNotify('Đã chuyển trạng thái đơn hàng')}>Cập nhật trạng thái</button></section><div className="order-timeline"><TimelineStep label="Đã đặt hàng" done /><TimelineStep label="Đã xác nhận" done /><TimelineStep label="Đang xử lý" done /><TimelineStep label="Đang giao" /><TimelineStep label="Hoàn thành" /></div><section className="panel order-detail-card"><h2>Sản phẩm trong đơn</h2><div className="best-seller-row"><Package size={18} /><span>iPhone 15 Pro Max × 1</span><strong>29.990.000đ</strong></div><div className="best-seller-row"><Package size={18} /><span>Phí vận chuyển</span><strong>Miễn phí</strong></div><hr /><div className="order-total-row"><span>Tổng tiền</span><strong>29.990.000đ</strong></div></section></> : <>{header}<div className="order-tabs"><button className="active">Tất cả <b>86</b></button><button>Chờ xác nhận <b>12</b></button><button>Đang giao <b>35</b></button><button>Hoàn thành <b>86</b></button><button>Đã hủy <b>5</b></button></div><AdminTable title="Đơn hàng gần đây" columns={['MÃ ĐƠN', 'KHÁCH HÀNG', 'THỜI GIAN', 'TỔNG TIỀN', 'TRẠNG THÁI']} rows={['DH000128|Nguyễn Minh Anh|Hôm nay, 09:42|32.490.000đ|Đang xử lý', 'DH000127|Trần Quốc Bảo|Hôm nay, 08:15|7.490.000đ|Đã giao', 'DH000126|Lê Hoàng Nam|Hôm qua, 16:20|29.990.000đ|Chờ xác nhận'].map((row) => { const item = row.split('|'); return [<strong>{item[0]}</strong>, item[1], item[2], <strong>{item[3]}</strong>, <span className="admin-badge info">{item[4]}</span>] })} onAction={onNotify} onRowClick={() => setSelected(true)} /></> }
-function TimelineStep({ label, done = false }) { return <div className={`timeline-step ${done ? 'done' : ''}`}><span>{done ? '✓' : '○'}</span><strong>{label}</strong></div> }
-function NotificationCenter({ header, onNotify }) { const [read, setRead] = useState(false); const items = [['3 sản phẩm sắp hết hàng', 'Hệ thống tồn kho', '5 phút trước', 'danger'], ['Đơn hàng #ORD102 đang chờ xử lý', 'Đơn hàng', '12 phút trước', 'warning'], ['Đơn hàng #ORD098 đã hoàn thành', 'Đơn hàng', '20 phút trước', 'success'], ['Hệ thống vừa deploy phiên bản mới', 'DevOps', '2 giờ trước', 'info']]; return <>{header}<div className="notification-toolbar"><span>{read ? 'Tất cả thông báo đã đọc' : '4 thông báo chưa đọc'}</span><button className="button ghost" onClick={() => { setRead(true); onNotify('Đã đánh dấu tất cả đã đọc') }}>Đánh dấu tất cả đã đọc</button></div><div className="notification-admin-grid">{items.map(([message, source, time, tone]) => <div className={`notification-admin-card ${read ? 'read' : ''}`} key={message}><div className={`admin-notification-icon tone-${tone}`}><AlertTriangle size={17} /></div><div><strong>{message}</strong><span>{source} · {time}</span></div><span className="notification-unread" /></div>)}</div></> }
-function SystemHealth({ header }) { return <>{header}<div className="system-status-grid"><SystemStatus name="Frontend" value="Online · Healthy" /><SystemStatus name="Backend API" value="Online · 24ms" /><SystemStatus name="Database" value="Connected · 12ms" /></div><div className="health-metrics"><AdminKpi label="CPU Usage" value="32%" /><AdminKpi label="Memory Usage" value="48%" /><AdminKpi label="Response Time" value="125ms" /></div><div className="panel monitoring-panel"><div className="panel-heading"><div><h2>Monitoring</h2><span>Chỉ số hệ thống trong thời gian thực</span></div></div><div className="monitor-row"><span>CPU Usage</span><i><b style={{ width: '32%' }} /></i><strong>32%</strong></div><div className="monitor-row"><span>Memory</span><i><b style={{ width: '48%' }} /></i><strong>48%</strong></div><div className="monitor-row"><span>Disk</span><i><b style={{ width: '31%' }} /></i><strong>31%</strong></div><div className="health-counts"><div><strong>12,842</strong><span>API Requests</span></div><div><strong>23</strong><span>Errors</span></div><div><strong>99.98%</strong><span>Uptime</span></div></div></div></> }
+    if (details.length === 0) {
+      setError('Nhập số lượng cần hoàn cho ít nhất một sản phẩm.')
+      return
+    }
 
-function CleanDashboard({ title, description }) { const [range, setRange] = useState('Tháng này'); const ranges = { 'Hôm nay': ['12.4M', '18.2M', '24.8M', '31.4M', '38.7M'], 'Tuần này': ['48M', '62M', '74M', '96M', '128M'], 'Tháng này': ['112M', '146M', '184M', '226M', '284M'], 'Quý này': ['640M', '780M', '920M', '1.1B', '1.3B'], 'Tùy chọn ngày': ['80M', '120M', '98M', '164M', '205M'] }; const notifyExport = (type) => { const blob = new Blob([`SmartStock report - ${range}`], { type: 'text/plain' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `smartstock-report-${type}.txt`; link.click(); URL.revokeObjectURL(link.href) }; return <><section className="page-heading"><div><div className="eyebrow">THỨ HAI, 24 THÁNG 6, 2024</div><h1>{title} <span>✦</span></h1><p>{description}</p></div><div className="dashboard-actions"><select value={range} onChange={(event) => setRange(event.target.value)}>{Object.keys(ranges).map((item) => <option key={item}>{item}</option>)}</select>{range === 'Tùy chọn ngày' && <input className="date-range-input" type="date" />}<button className="button secondary" onClick={() => notifyExport('excel')}><Download size={15} /> Excel</button><button className="button primary" onClick={() => notifyExport('pdf')}><Download size={15} /> Xuất báo cáo</button></div></section><div className="metric-grid"><CleanMetric label="Doanh thu tháng này" value="284.560.000đ" tone="coral" /><CleanMetric label="Tổng sản phẩm" value="1.284" tone="mint" /><CleanMetric label="Giá trị tồn kho" value="1.856.240.000đ" tone="lavender" /><CleanMetric label="Đơn hàng mới" value="86" tone="yellow" /></div><div className="dashboard-stat-grid"><AdminKpi label="Nhập kho hôm nay" value="124" /><AdminKpi label="Xuất kho hôm nay" value="87" tone="warning" /><AdminKpi label="Đơn đang giao" value="35" tone="success" /></div><div className="dashboard-grid"><div className="panel chart-panel"><div className="panel-heading"><div><h2>Doanh thu</h2><span>Dữ liệu: {range} · +12,8% so với cùng kỳ năm trước</span></div></div><div className="chart-summary"><strong>{ranges[range][4]}</strong><span><TrendingUp size={14} /> Cùng kỳ +8,4%</span></div><div className="clean-bars">{ranges[range].map((value, index) => <div className="dashboard-bar" key={value}><i style={{ height: `${42 + index * 12}%` }} /><span>{value}</span></div>)}</div></div><div className="panel status-panel"><div className="panel-heading"><div><h2>Đơn hàng theo trạng thái</h2><span>Cập nhật theo thời gian thực</span></div></div>{[['Chờ xác nhận', '12', 'warning'], ['Đang xử lý', '24', 'info'], ['Đang giao', '35', 'info'], ['Hoàn thành', '86', 'success'], ['Đã hủy', '5', 'danger']].map(([label, value, tone]) => <div className="status-row" key={label}><span className={`status-dot ${tone}`} />{label}<strong>{value}</strong></div>)}</div></div><div className="dashboard-lower-grid"><div className="panel dashboard-list-panel"><div className="panel-heading"><div><h2>🔥 Sản phẩm bán chạy</h2><span>Trong tháng này</span></div></div>{[['iPhone 15 Pro Max', '128 đã bán'], ['MacBook Air M3', '94 đã bán'], ['Sony WH-1000XM5', '72 đã bán']].map(([name, sold], index) => <div className="best-seller-row" key={name}><b>0{index + 1}</b><Package size={18} /><span>{name}</span><strong>{sold}</strong></div>)}</div><div className="panel dashboard-list-panel"><div className="panel-heading"><div><h2>👥 Top khách hàng</h2><span>Trong khoảng thời gian đã chọn</span></div></div>{[['Nguyễn Minh Anh', '18.4M'], ['Trần Quốc Bảo', '12.8M'], ['Lê Hoàng Nam', '9.6M']].map(([name, total], index) => <div className="best-seller-row" key={name}><b>0{index + 1}</b><Users size={18} /><span>{name}</span><strong>{total}</strong></div>)}</div></div><div className="panel dashboard-list-panel forecast-panel"><div className="panel-heading"><div><h2>📦 Dự báo tồn kho</h2><span>Dựa trên tốc độ bán trung bình 7 ngày</span></div></div>{[['MacBook Air M3', '7 ngày nữa', 'danger'], ['iPhone 15 Pro Max', '18 ngày nữa', 'warning'], ['Sony WH-1000XM5', '42 ngày nữa', 'success']].map(([name, eta, tone]) => <div className="best-seller-row" key={name}><span className={`status-dot ${tone}`} /><span>{name}</span><strong>{eta}</strong></div>)}</div></> }
+    setError('')
+    onSave({ reason, details })
+  }
 
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box">
+        <div className="modal-head">
+          <h3>Hoàn hàng · {order.orderCode}</h3>
+          <button type="button" className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <p className="module-form-note">Chỉ nhập số lượng chưa hoàn. Tồn kho và khoản thu sẽ được cập nhật theo số lượng này.</p>
+            {refundableDetails.map((detail) => {
+              const remaining = detail.quantity - (detail.returnedQuantity || 0)
+              return (
+                <div className="return-line" key={detail.id}>
+                  <div>
+                    <strong>{detail.productName}</strong>
+                    <span>Đã mua {detail.quantity} · còn có thể hoàn {remaining}</span>
+                  </div>
+                  <input
+                    aria-label={`Số lượng hoàn ${detail.productName}`}
+                    type="number"
+                    min="0"
+                    max={remaining}
+                    step="1"
+                    value={quantities[detail.id] || 0}
+                    onChange={(event) => setQuantities((current) => ({ ...current, [detail.id]: event.target.value }))}
+                  />
+                </div>
+              )
+            })}
+            <div className="form-field">
+              <label>Lý do hoàn</label>
+              <textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} />
+            </div>
+            {error && <small className="category-image-error" role="alert">{error}</small>}
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="button ghost" onClick={onClose}>Hủy</button>
+            <button type="submit" className="button primary" disabled={!refundableDetails.length}>Xác nhận hoàn hàng</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function AddProductModal({ categories, suppliers, onClose, onSave }) {
+  const [name, setName] = useState('')
+  const [categoryId, setCategoryId] = useState(categories[0]?.id || '')
+  const [supplierId, setSupplierId] = useState('')
+  const [price, setPrice] = useState('')
+  const [costPrice, setCostPrice] = useState('')
+  const [quantity, setQuantity] = useState('10')
+  const [minStock, setMinStock] = useState('5')
+  const [unit, setUnit] = useState('cái')
+  const [description, setDescription] = useState('')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSave({
+      name,
+      categoryId: Number(categoryId),
+      price: Number(price),
+      costPrice: Number(costPrice) || 0,
+      quantity: Number(quantity),
+      minStock: Number(minStock),
+      unit,
+      description,
+      supplierId: supplierId ? Number(supplierId) : null,
+    })
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box wide">
+        <div className="modal-head">
+          <h3>Thêm sản phẩm mới vào Kho</h3>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div className="form-field">
+              <label>Tên sản phẩm *</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="VD: Tai nghe Bluetooth Pro Max"
+                required
+              />
+            </div>
+            <div className="modal-grid-2">
+              <div className="form-field">
+                <label>Danh mục *</label>
+                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-field">
+                <label>Đơn vị tính</label>
+                <input
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  placeholder="cái, bộ, chiếc..."
+                />
+              </div>
+            </div>
+            <div className="form-field">
+              <label>Nhà cung cấp</label>
+              <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                <option value="">Không gắn nhà cung cấp</option>
+                {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+              </select>
+            </div>
+            <div className="modal-grid-2">
+              <div className="form-field">
+                <label>Giá bán (VNĐ) *</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="1500000"
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Giá vốn (VNĐ)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={costPrice}
+                  onChange={(e) => setCostPrice(e.target.value)}
+                  placeholder="1000000"
+                />
+              </div>
+            </div>
+            <div className="modal-grid-2">
+              <div className="form-field">
+                <label>Số lượng tồn ban đầu *</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Cảnh báo tồn tối thiểu</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={minStock}
+                  onChange={(e) => setMinStock(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="form-field">
+              <label>Mô tả sản phẩm</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Mô tả thông số hoặc nguồn gốc..."
+              />
+            </div>
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="button ghost" onClick={onClose}>Hủy</button>
+            <button type="submit" className="button primary" disabled={!categories.length}>Tạo sản phẩm</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function AddCategoryModal({ onClose, onSave }) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState('')
+  const [imageError, setImageError] = useState('')
+
+  useEffect(() => () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+  }, [imagePreview])
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSave({ name, description, icon: '📦', imageFile })
+  }
+
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0] || null
+    setImageError('')
+    setImageFile(file)
+    setImagePreview(file ? URL.createObjectURL(file) : '')
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box">
+        <div className="modal-head">
+          <h3>Thêm danh mục sản phẩm mới</h3>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div className="form-field">
+              <label>Tên danh mục *</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="VD: Phụ kiện sạc cáp"
+                required
+              />
+            </div>
+            <div className="form-field">
+              <label>Ảnh đại diện sản phẩm</label>
+              <label className="category-image-picker">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Xem trước ảnh danh mục" />
+                ) : (
+                  <span><Upload size={18} /> Chọn ảnh bất kỳ (image/*)</span>
+                )}
+                <input type="file" accept="image/*" onChange={handleImageChange} />
+              </label>
+              {imageError && <small className="category-image-error">{imageError}</small>}
+            </div>
+            <div className="form-field">
+              <label>Mô tả ngắn</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Mô tả về nhóm sản phẩm này..."
+              />
+            </div>
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="button ghost" onClick={onClose}>Hủy</button>
+            <button type="submit" className="button primary">Lưu danh mục</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------
+// NOTIFICATION CENTER & SYSTEM HEALTH
+// ----------------------------------------------------
+function NotificationCenter({ header, onNotify }) {
+  const [notifications, setNotifications] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  const loadNotifs = async () => {
+    setLoading(true)
+    try {
+      const data = await api.getNotifications()
+      setNotifications(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadNotifs()
+  }, [])
+
+  const handleReadAll = async () => {
+    try {
+      await api.markAllNotificationsRead()
+      onNotify('Đã đánh dấu tất cả thông báo là đã đọc')
+      loadNotifs()
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
+  const handleReadSingle = async (id) => {
+    try {
+      if (id > 0) {
+        await api.markNotificationRead(id)
+      }
+      loadNotifs()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  return (
+    <>
+      {header}
+      <div className="notification-toolbar">
+        <span>{notifications.filter((n) => !n.isRead).length} thông báo chưa đọc</span>
+        <button className="button ghost" onClick={handleReadAll}>
+          Đánh dấu tất cả đã đọc
+        </button>
+      </div>
+
+      <div className="notification-admin-grid">
+        {notifications.map((n, idx) => (
+          <div
+            className={`notification-admin-card ${n.isRead ? 'read' : ''}`}
+            key={idx}
+            onClick={() => handleReadSingle(n.id)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className={`admin-notification-icon tone-${n.type === 'error' ? 'danger' : '1'}`}>
+              <AlertTriangle size={17} />
+            </div>
+            <div>
+              <strong>{n.title}</strong>
+              <span>{n.message} &bull; {formatDate(n.createdAt)}</span>
+            </div>
+            {!n.isRead && <span className="notification-unread" />}
+          </div>
+        ))}
+        {notifications.length === 0 && (
+          <div style={{ padding: 30, textAlign: 'center', color: '#888' }}>
+            Không có thông báo mới nào.
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function SystemHealth({ header }) {
+  const [health, setHealth] = useState({ ok: null, status: 'Checking...', database: 'Unknown', latency: null })
+
+  const ping = async () => {
+    const res = await api.getHealth()
+    setHealth(res)
+  }
+
+  useEffect(() => {
+    ping()
+    const timer = setInterval(ping, 10000)
+    return () => clearInterval(timer)
+  }, [])
+
+  return (
+    <>
+      {header}
+      <div className="system-status-grid">
+        <SystemStatus name="Frontend" value="Đang được phục vụ" />
+        <SystemStatus
+          name="Backend (.NET 10 API)"
+          value={health.ok ? `${health.status} · ${health.latency} ms` : health.ok === false ? 'Không phản hồi' : 'Đang kiểm tra'}
+        />
+        <SystemStatus name="SQL Server" value={health.database === 'Connected' ? 'Đã kết nối' : health.database === 'Unreachable' ? 'Không kết nối' : 'Chưa xác định'} />
+      </div>
+
+      <div className="panel monitoring-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Trạng thái kết nối</h2>
+            <span>Kiểm tra Backend và SQL Server mỗi 10 giây</span>
+          </div>
+          <button className="button ghost" onClick={ping}>
+            <RefreshCw size={15} /> Kiểm tra ngay
+          </button>
+        </div>
+
+        <div className="monitor-row">
+          <span>API response</span>
+          <i><b style={{ width: health.ok === null ? '50%' : health.ok ? '100%' : '0%', background: health.ok ? '#55aa84' : '#e47661' }} /></i>
+          <strong>{health.latency ? `${health.latency}ms` : 'Offline'}</strong>
+        </div>
+
+        <div className="health-counts">
+          <div>
+            <strong>Database probe</strong>
+            <span>{health.database === 'Connected' ? 'CanConnect thành công' : health.database === 'Unreachable' ? 'SQL Server không phản hồi' : 'Đang kiểm tra'}</span>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ----------------------------------------------------
+// LOWER MODULES (OTHER PAGES)
+// ----------------------------------------------------
 function CleanLowerModule({ page, title, description, header, onNotify }) {
-  if (page === 'purchase-orders') return <>{header}<div className="admin-kpi-row"><AdminKpi label="Đơn nhập đang mở" value="12" /><AdminKpi label="Chờ nhận hàng" value="5" tone="warning" /><AdminKpi label="Giá trị nhập tháng này" value="486M" /></div><AdminTable title="Đơn đặt hàng nhập" columns={['MÃ ĐƠN', 'NHÀ CUNG CẤP', 'NGÀY ĐẶT', 'GIÁ TRỊ', 'TRẠNG THÁI']} rows={['PO-0024|Apple Distribution VN|04/09/2026|128.400.000đ|Đang giao', 'PO-0023|Sony Electronics|02/09/2026|86.200.000đ|Đã nhận một phần', 'PO-0022|An Phát Accessories|30/08/2026|42.800.000đ|Hoàn tất'].map((row) => { const item = row.split('|'); return [<strong>{item[0]}</strong>, item[1], item[2], item[3], <span className={`admin-badge ${item[4] === 'Hoàn tất' ? 'success' : 'info'}`}>{item[4]}</span>] })} onAction={onNotify} /></>
-  if (page === 'warehouses') return <>{header}<div className="admin-card-grid warehouse-grid">{[['Kho chính', '1.284 sản phẩm', 'TP. Hồ Chí Minh'], ['Kho Hà Nội', '482 sản phẩm', 'Hà Nội'], ['Kho Đà Nẵng', '218 sản phẩm', 'Đà Nẵng']].map(([name, stock, location]) => <div className="admin-info-card" key={name}><div className="admin-card-icon icon-1"><Warehouse size={21} /></div><strong>{name}</strong><span>{stock}</span><small>{location}</small><button onClick={() => onNotify(`Đã mở ${name}`)}>Quản lý kho <ChevronRight size={14} /></button></div>)}</div><section className="panel transfer-panel"><div className="panel-heading"><div><h2>Chuyển kho nội bộ</h2><span>Điều phối hàng giữa các chi nhánh</span></div><button className="button primary" onClick={() => onNotify('Đã mở phiếu chuyển kho')}><Plus size={15} /> Tạo phiếu chuyển</button></div></section></>
-  if (page === 'roles') return <>{header}<div className="role-grid">{[['Admin', 'Toàn quyền hệ thống', '18 quyền'], ['Nhân viên', 'Sản phẩm, đơn hàng, tồn kho', '9 quyền'], ['Kế toán', 'Báo cáo, doanh thu, nhập hàng', '6 quyền']].map(([name, detail, count], index) => <div className="role-card" key={name}><div className={`role-avatar role-${index}`}>{name[0]}</div><strong>{name}</strong><span>{detail}</span><b>{count}</b><button onClick={() => onNotify(`Đang chỉnh sửa quyền ${name}`)}>Chỉnh sửa quyền</button></div>)}</div></>
-  if (page === 'promotions') return <>{header}<div className="admin-kpi-row"><AdminKpi label="Mã đang chạy" value="8" /><AdminKpi label="Lượt sử dụng" value="1.284" /><AdminKpi label="Doanh thu từ mã" value="86.4M" /></div><AdminTable title="Mã giảm giá" columns={['MÃ CODE', 'ƯU ĐÃI', 'THỜI HẠN', 'ĐÃ DÙNG', 'TRẠNG THÁI']} rows={['SALE10|Giảm 10%|01/06 - 30/06|128 / 500|Đang chạy', 'NEWUSER|Giảm 50.000đ|Không giới hạn|42 / 100|Đang chạy', 'BLACKFRIDAY|Giảm 20%|01/11 - 30/11|0 / 1000|Sắp diễn ra'].map((row) => { const item = row.split('|'); return [<strong>{item[0]}</strong>, item[1], item[2], item[3], <span className={`admin-badge ${item[4] === 'Đang chạy' ? 'success' : 'warning'}`}>{item[4]}</span>] })} onAction={onNotify} /></>
-  if (page === 'reviews') return <>{header}<div className="review-summary"><div><strong>4.8</strong><span>★★★★★</span><small>1.248 đánh giá</small></div><div><b>5 ★</b><i style={{ width: '86%' }} /><b>86%</b></div><div><b>4 ★</b><i style={{ width: '42%' }} /><b>10%</b></div></div><AdminTable title="Đánh giá mới nhất" columns={['KHÁCH HÀNG', 'SẢN PHẨM', 'RATING', 'NỘI DUNG', 'TRẠNG THÁI']} rows={['Nguyễn Minh Anh|iPhone 15 Pro Max|★★★★★|Sản phẩm rất tốt|Hiển thị', 'Trần Quốc Bảo|Sony WH-1000XM5|★★★★☆|Âm thanh tuyệt vời|Hiển thị', 'Lê Hoàng Nam|MacBook Air M3|★★★★★|Giao hàng nhanh|Chờ duyệt'].map((row) => { const item = row.split('|'); return [<strong>{item[0]}</strong>, item[1], <span className="rating-text">{item[2]}</span>, item[3], <span className={`admin-badge ${item[4] === 'Hiển thị' ? 'success' : 'warning'}`}>{item[4]}</span>] })} onAction={onNotify} /></>
-  if (page === 'users') return <>{header}<AdminTable title="4 thành viên" columns={['THÀNH VIÊN', 'EMAIL', 'VAI TRÒ', 'HOẠT ĐỘNG GẦN NHẤT', 'TRẠNG THÁI']} rows={['Cường|cuong@smartstock.vn|Admin|Vừa xong|Đang hoạt động', 'Trần Minh|tran.minh@smartstock.vn|Staff|10 phút trước|Đang hoạt động', 'Nguyễn Hà|nguyen.ha@smartstock.vn|Staff|2 giờ trước|Đang hoạt động'].map((row) => { const item = row.split('|'); return [<strong>{item[0]}</strong>, item[1], <span className="role-badge">{item[2]}</span>, item[3], <span className="admin-badge success">{item[4]}</span>] })} onAction={onNotify} /></>
-  if (page === 'notifications') return <NotificationCenter header={header} onNotify={onNotify} />
-  if (page === 'system') return <SystemHealth header={header} />
-  if (page === 'deployment') return <>{header}<div className="deployment-hero"><div><span className="live-dot" /> Production <strong>Running</strong></div><div><span>Version</span><b>v1.4.2</b></div><div><span>Commit</span><b>a82f91c</b></div><div><span>Branch</span><b>main</b></div><div className="detail-action-row"><button className="button primary" onClick={() => onNotify('Deployment đã được khởi chạy')}>Deploy</button><button className="button danger" onClick={() => onNotify('Rollback đã được khởi chạy')}>Rollback</button></div></div><section className="panel admin-table-panel"><div className="table-meta"><strong>Deployment history</strong><span>Production environment</span></div><table><thead><tr><th>VERSION</th><th>STATUS</th><th>DATE</th><th>COMMIT</th><th /></tr></thead><tbody>{[['v1.4.2', 'Success', '04/09/2026', 'a82f91c'], ['v1.4.1', 'Success', '02/09/2026', '70be21a'], ['v1.4.0', 'Failed', '30/08/2026', '3a9c110'], ['v1.3.9', 'Success', '28/08/2026', '8f61c2d']].map((row) => <tr key={row[0]}><td><strong>{row[0]}</strong></td><td><span className={`admin-badge ${row[1] === 'Success' ? 'success' : 'danger'}`}>{row[1]}</span></td><td>{row[2]}</td><td>{row[3]}</td><td><button className="admin-more" onClick={() => onNotify(`Đã chọn ${row[0]}`)}>•••</button></td></tr>)}</tbody></table></section></>
-  if (page === 'logs') return <>{header}<div className="activity-log-list">{[['Cường đã thêm sản phẩm “iPhone 15 Pro Max”', '5 phút trước', 'success'], ['Nhân viên đã cập nhật tồn kho MacBook Air M3', '12 phút trước', 'warning'], ['Đơn hàng #DH000128 đã được xác nhận', '20 phút trước', 'info'], ['Deployment v1.4.0 thất bại', '2 giờ trước', 'danger']].map(([message, time, tone]) => <div className="activity-log" key={message}><span className={`status-dot ${tone}`} /><div><strong>{message}</strong><span>{time}</span></div></div>)}</div></>
-  if (page === 'suppliers') return <>{header}<AdminTable title="12 nhà cung cấp" columns={['NHÀ CUNG CẤP', 'LIÊN HỆ', 'SẢN PHẨM', 'ĐÁNH GIÁ', 'TRẠNG THÁI']} rows={['Apple Distribution VN|contact@apple.vn|Điện thoại, Laptop|4.9|Đang hợp tác', 'Sony Electronics|partner@sony.vn|Tai nghe, Phụ kiện|4.7|Đang hợp tác', 'An Phát Accessories|sales@anphat.vn|Cáp, Sạc|4.5|Chờ duyệt'].map((row) => { const item = row.split('|'); return [<strong>{item[0]}</strong>, item[1], item[2], <span className="rating-text">★ {item[3]}</span>, <span className={`admin-badge ${item[4] === 'Đang hợp tác' ? 'success' : 'warning'}`}>{item[4]}</span>] })} onAction={onNotify} /></>
-  if (page === 'security') return <>{header}<div className="security-summary"><AdminKpi label="Đăng nhập thành công" value="24" /><AdminKpi label="Phiên hoạt động" value="6" /><AdminKpi label="Cảnh báo cần xem" value="2" tone="warning" /></div><AdminTable title="Hoạt động gần đây" columns={['THỜI GIAN', 'HOẠT ĐỘNG', 'NGƯỜI THỰC HIỆN', 'THIẾT BỊ', 'TRẠNG THÁI']} rows={['16:42|Admin đăng nhập|Cường|Chrome · 192.168.1.20|Thành công', '16:38|Staff cập nhật sản phẩm|Trần Minh|Edge · 192.168.1.24|Thành công', '16:20|Thay đổi quyền truy cập|Cường|Chrome · 192.168.1.20|Cần xác minh'].map((row) => { const item = row.split('|'); return [<strong>{item[0]}</strong>, item[1], item[2], item[3], <span className={`admin-badge ${item[4] === 'Thành công' ? 'success' : 'warning'}`}>{item[4]}</span>] })} onAction={onNotify} /></>
-  return <>{header}<div className="settings-layout"><nav className="settings-tabs"><button className="active">General</button><button>Security</button><button>Notification</button><button>Appearance</button><button>Payment</button><button>Shipping</button></nav><div className="panel settings-panel"><h2>Thông tin cửa hàng</h2><p className="settings-lead">Thông tin hiển thị trên hóa đơn và email gửi khách hàng.</p><div className="settings-form"><label>Tên cửa hàng<input defaultValue="SmartStock Store" /></label><label>Email hỗ trợ<input defaultValue="support@smartstock.vn" /></label><label>Số điện thoại<input defaultValue="1900 6868" /></label><label>Địa chỉ<input defaultValue="28 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh" /></label></div><button className="button primary" onClick={() => onNotify('Đã lưu cài đặt')}>Lưu thay đổi</button></div></div></>
+  if (page === 'purchase-orders') {
+    return <CleanPurchaseOrders header={header} />
+  }
+
+  if (page === 'reports') {
+    return <CleanReportsModule header={header} />
+  }
+
+  if (page === 'settings') {
+    return <CleanSettingsModule header={header} />
+  }
+
+  return (
+    <>
+      {header}
+      <div className="panel clean-detail-panel">
+        <div className="admin-module-icon"><Package size={25} /></div>
+        <h2>{title}</h2>
+        <p>Mục này chưa có chức năng quản trị trong phiên bản hiện tại.</p>
+      </div>
+    </>
+  )
 }
 
-function SystemStatus({ name, value }) { return <div className="system-status"><i /><div><strong>{name}</strong><span>{value}</span></div></div> }
+function CleanPurchaseOrders({ header }) {
+  const [imports, setImports] = useState([])
+  const [suppliers, setSuppliers] = useState([])
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [toast, setToast] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
-function CleanMetric({ label, value, tone }) { return <div className="metric-card"><div className={`metric-icon ${tone}`}><TrendingUp size={21} /></div><div className="metric-label">{label}</div><strong className="metric-value">{value}</strong><div className="metric-foot"><span className="trend">↗ 12,8%</span><span>so với tháng trước</span></div></div> }
+  const notify = (message) => {
+    setToast(message)
+    setTimeout(() => setToast(''), 2500)
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const [importResult, supplierResult, productResult] = await Promise.all([
+        api.getImports({ pageSize: 100 }),
+        api.getSuppliers({ pageSize: 100 }),
+        api.getProducts({ pageSize: 100 }),
+      ])
+      setImports(importResult?.items || [])
+      setSuppliers(supplierResult?.items || [])
+      setProducts(productResult?.items || [])
+    } catch (err) {
+      setError(err.message || 'Không thể tải phiếu nhập kho')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const handleCreate = async (data) => {
+    try {
+      await api.createImport(data)
+      setShowCreateModal(false)
+      notify(data.status === 'draft' ? 'Đã lưu phiếu nhập nháp!' : 'Đã tạo phiếu nhập và cập nhật tồn kho!')
+      await loadData()
+    } catch (err) {
+      alert(err.message || 'Không thể tạo phiếu nhập')
+    }
+  }
+
+  const handleConfirm = async (receipt) => {
+    if (!confirm(`Xác nhận phiếu ${receipt.receiptCode} và cộng tồn kho?`)) return
+    try {
+      await api.confirmImport(receipt.id)
+      notify('Đã xác nhận phiếu nhập và cộng tồn kho!')
+      await loadData()
+    } catch (err) {
+      alert(err.message || 'Không thể xác nhận phiếu nhập')
+    }
+  }
+
+  const handleCancel = async (receipt) => {
+    if (!confirm(`Hủy phiếu ${receipt.receiptCode}? Tồn kho sẽ được hoàn tác nếu phiếu đã hoàn tất.`)) return
+    try {
+      await api.deleteImport(receipt.id)
+      notify('Đã hủy phiếu nhập!')
+      await loadData()
+    } catch (err) {
+      alert(err.message || 'Không thể hủy phiếu nhập')
+    }
+  }
+
+  const statusLabels = { draft: 'Nháp', completed: 'Hoàn tất', confirmed: 'Đã xác nhận', cancelled: 'Đã hủy' }
+
+  return (
+    <>
+      {header}
+      <div className="admin-toolbar">
+        <strong>{imports.length} phiếu nhập</strong>
+        <button className="button primary" onClick={() => setShowCreateModal(true)}>
+          <Plus size={16} /> Tạo phiếu nhập
+        </button>
+      </div>
+      {error && <div className="login-error-badge">{error}</div>}
+      {loading ? (
+        <div className="api-loading-state"><RefreshCw className="spin" size={24} /> Đang tải phiếu nhập...</div>
+      ) : (
+        <AdminTable
+          title="Phiếu nhập từ cơ sở dữ liệu"
+          columns={['MÃ PHIẾU', 'NHÀ CUNG CẤP', 'NGÀY TẠO', 'SẢN PHẨM', 'TỔNG TIỀN', 'TRẠNG THÁI', 'THAO TÁC']}
+          hideActions
+          rows={imports.map((receipt) => [
+            <code>{receipt.receiptCode}</code>,
+            <strong>{receipt.supplierName}</strong>,
+            formatDate(receipt.createdAt),
+            receipt.details?.length || 0,
+            formatVND(receipt.totalAmount),
+            <span className={`admin-badge ${receipt.status === 'completed' ? 'success' : receipt.status === 'cancelled' ? 'danger' : 'warning'}`}>
+              {statusLabels[receipt.status] || receipt.status}
+            </span>,
+            <div className="module-row-actions">
+              {receipt.status === 'draft' && <button className="button secondary" onClick={() => handleConfirm(receipt)}>Xác nhận</button>}
+              {receipt.status !== 'cancelled' && <button className="module-icon-button danger" title="Hủy phiếu" aria-label={`Hủy ${receipt.receiptCode}`} onClick={() => handleCancel(receipt)}><Trash2 size={15} /></button>}
+            </div>,
+          ])}
+        />
+      )}
+      {showCreateModal && <CreateImportModal suppliers={suppliers} products={products} onClose={() => setShowCreateModal(false)} onSave={handleCreate} />}
+      {toast && <AdminToast message={toast} />}
+    </>
+  )
+}
+
+function CreateImportModal({ suppliers, products, onClose, onSave }) {
+  const [supplierId, setSupplierId] = useState('')
+  const [note, setNote] = useState('')
+  const [status, setStatus] = useState('draft')
+  const [details, setDetails] = useState([{ productId: '', quantity: 1, importPrice: '' }])
+
+  const updateDetail = (index, field, value) => {
+    setDetails((current) => current.map((detail, detailIndex) => {
+      if (detailIndex !== index) return detail
+      if (field === 'productId') {
+        const product = products.find((item) => item.id === Number(value))
+        return { ...detail, productId: value, importPrice: product?.costPrice ?? '' }
+      }
+      return { ...detail, [field]: value }
+    }))
+  }
+
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    onSave({
+      supplierId: Number(supplierId),
+      note,
+      status,
+      details: details.map((detail) => ({
+        productId: Number(detail.productId),
+        quantity: Number(detail.quantity),
+        importPrice: Number(detail.importPrice),
+      })),
+    })
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box wide">
+        <div className="modal-head">
+          <h3>Tạo phiếu nhập kho</h3>
+          <button type="button" className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div className="form-field">
+              <label>Nhà cung cấp *</label>
+              <select value={supplierId} onChange={(event) => setSupplierId(event.target.value)} required>
+                <option value="">Chọn nhà cung cấp</option>
+                {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+              </select>
+            </div>
+            {details.map((detail, index) => (
+              <div className="modal-grid-2" key={index}>
+                <div className="form-field">
+                  <label>Sản phẩm *</label>
+                  <select value={detail.productId} onChange={(event) => updateDetail(index, 'productId', event.target.value)} required>
+                    <option value="">Chọn sản phẩm</option>
+                    {products.map((product) => <option key={product.id} value={product.id}>{product.name} ({product.productCode})</option>)}
+                  </select>
+                </div>
+                <div className="modal-grid-2">
+                  <div className="form-field">
+                    <label>Số lượng *</label>
+                    <input type="number" min="1" step="1" value={detail.quantity} onChange={(event) => updateDetail(index, 'quantity', event.target.value)} required />
+                  </div>
+                  <div className="form-field">
+                    <label>Giá nhập *</label>
+                    <input type="number" min="0" step="0.01" value={detail.importPrice} onChange={(event) => updateDetail(index, 'importPrice', event.target.value)} required />
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button type="button" className="button ghost" onClick={() => setDetails((current) => [...current, { productId: '', quantity: 1, importPrice: '' }])}>
+              <Plus size={15} /> Thêm dòng sản phẩm
+            </button>
+            <div className="form-field">
+              <label>Ghi chú</label>
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} />
+            </div>
+            <div className="form-field">
+              <label>Trạng thái ban đầu</label>
+              <select value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="draft">Lưu nháp, chưa cộng tồn kho</option>
+                <option value="completed">Hoàn tất ngay và cộng tồn kho</option>
+              </select>
+            </div>
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="button ghost" onClick={onClose}>Hủy</button>
+            <button type="submit" className="button primary" disabled={!suppliers.length || !products.length}>Lưu phiếu nhập</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function CleanReportsModule({ header }) {
+  const currentDate = new Date()
+  const [period, setPeriod] = useState('monthly')
+  const [year, setYear] = useState(currentDate.getFullYear())
+  const [month, setMonth] = useState(currentDate.getMonth() + 1)
+  const [revenue, setRevenue] = useState([])
+  const [topProducts, setTopProducts] = useState([])
+  const [inventory, setInventory] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const loadReports = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const reportMonth = period === 'daily' ? month : null
+      const [revenueResult, topResult, inventoryResult] = await Promise.all([
+        api.getRevenueReport(period, year, reportMonth),
+        api.getTopProductsReport(year, reportMonth, 10),
+        api.getInventoryReport(),
+      ])
+      setRevenue(revenueResult || [])
+      setTopProducts(topResult || [])
+      setInventory(inventoryResult || [])
+    } catch (err) {
+      setError(err.message || 'Không thể tải báo cáo')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadReports()
+  }, [period, year, month])
+
+  const totalRevenue = revenue.reduce((sum, row) => sum + row.revenue, 0)
+  const orderCount = revenue.reduce((sum, row) => sum + row.orderCount, 0)
+  const averageOrder = orderCount ? totalRevenue / orderCount : 0
+  const inventoryValue = inventory.reduce((sum, row) => sum + row.stockValue, 0)
+
+  return (
+    <>
+      {header}
+      <div className="admin-toolbar">
+        <select className="admin-filter-select" value={period} onChange={(event) => setPeriod(event.target.value)}>
+          <option value="monthly">Theo tháng</option>
+          <option value="daily">Theo ngày</option>
+          <option value="yearly">Theo năm</option>
+        </select>
+        <input className="admin-filter-select" type="number" min="2000" max="2100" value={year} onChange={(event) => setYear(Number(event.target.value))} aria-label="Năm báo cáo" />
+        {period === 'daily' && (
+          <select className="admin-filter-select" value={month} onChange={(event) => setMonth(Number(event.target.value))} aria-label="Tháng báo cáo">
+            {Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>Tháng {index + 1}</option>)}
+          </select>
+        )}
+        <button className="button ghost" onClick={loadReports} disabled={loading} title="Làm mới báo cáo"><RefreshCw size={15} className={loading ? 'spin' : ''} /></button>
+      </div>
+      {error && <div className="login-error-badge">{error}</div>}
+      <div className="report-kpi-grid">
+        <AdminKpi label="Doanh thu đã hoàn tất" value={formatVND(totalRevenue)} />
+        <AdminKpi label="Số đơn hoàn tất" value={String(orderCount)} />
+        <AdminKpi label="Giá trị tồn kho" value={formatVND(inventoryValue)} />
+      </div>
+      {loading ? (
+        <div className="api-loading-state"><RefreshCw className="spin" size={24} /> Đang tải báo cáo...</div>
+      ) : (
+        <>
+          <AdminTable
+            title={`Doanh thu ${period === 'daily' ? `tháng ${month}/${year}` : period === 'yearly' ? 'theo năm' : `năm ${year}`}`}
+            columns={['KỲ', 'ĐƠN HOÀN TẤT', 'DOANH THU', 'TRUNG BÌNH/ĐƠN']}
+            hideActions
+            rows={revenue.map((row) => [row.period, row.orderCount, formatVND(row.revenue), formatVND(row.averageOrderValue)])}
+          />
+          <AdminTable
+            title="Sản phẩm bán chạy"
+            columns={['SẢN PHẨM', 'SỐ LƯỢNG ĐÃ BÁN', 'DOANH THU']}
+            hideActions
+            rows={topProducts.map((product) => [<strong>{product.productName}</strong>, product.totalSold, formatVND(product.totalRevenue)])}
+          />
+          <AdminTable
+            title="Tình trạng tồn kho"
+            columns={['MÃ SKU', 'SẢN PHẨM', 'NHẬP', 'XUẤT', 'TỒN HIỆN TẠI', 'GIÁ TRỊ TỒN']}
+            hideActions
+            rows={inventory.map((item) => [<code>{item.productCode}</code>, item.productName, item.totalImport, item.totalExport, item.closingStock, formatVND(item.stockValue)])}
+          />
+        </>
+      )}
+    </>
+  )
+}
+
+function CleanSettingsModule({ header }) {
+  const [health, setHealth] = useState(null)
+
+  useEffect(() => {
+    api.getHealth().then(setHealth)
+  }, [])
+
+  return (
+    <>
+      {header}
+      <section className="panel settings-panel">
+        <h2>Thông tin kết nối</h2>
+        <div className="settings-form">
+          <label>Ứng dụng<input value="SmartStock Store" readOnly /></label>
+          <label>Địa chỉ hiện tại<input value={window.location.origin} readOnly /></label>
+          <label>API<input value="/api · cùng origin" readOnly /></label>
+          <label>Backend health<input value={health ? (health.ok ? `Đang hoạt động · ${health.latency} ms` : 'Không kết nối') : 'Đang kiểm tra...'} readOnly /></label>
+        </div>
+      </section>
+    </>
+  )
+}
+
+// ----------------------------------------------------
+// SHARED UI PIECES
+// ----------------------------------------------------
+function AdminTable({ title, columns, rows, onAction, onRowClick, hideActions = false }) {
+  return (
+    <section className="panel admin-table-panel">
+      <div className="table-meta">
+        <strong>{title}</strong>
+        <span>Dữ liệu thực từ Database</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            {columns.map((c) => (
+              <th key={c}>{c}</th>
+            ))}
+            {!hideActions && <th />}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rIdx) => (
+            <tr
+              key={rIdx}
+              className={onRowClick ? 'clickable-row' : ''}
+              onClick={() => onRowClick?.(rIdx)}
+            >
+              {row.map((cell, cIdx) => (
+                <td key={cIdx}>{cell}</td>
+              ))}
+              {!hideActions && (
+                <td>
+                  <button
+                    className="admin-more"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onAction('Đã mở thao tác')
+                    }}
+                  >
+                    •••
+                  </button>
+                </td>
+              )}
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={columns.length + (hideActions ? 0 : 1)} style={{ textAlign: 'center', padding: '30px', color: '#888' }}>
+                Không có bản ghi nào.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
+function PromotionModal({ promotion, onClose, onSave }) {
+  const toLocalDateTime = (value) => {
+    const date = value ? new Date(value) : new Date()
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset())
+    return date.toISOString().slice(0, 16)
+  }
+  const [name, setName] = useState(promotion?.name || '')
+  const [code, setCode] = useState(promotion?.code || '')
+  const [description, setDescription] = useState(promotion?.description || '')
+  const [discountType, setDiscountType] = useState(promotion?.discountType || 'percent')
+  const [discountValue, setDiscountValue] = useState(promotion?.discountValue ?? '')
+  const [startsAt, setStartsAt] = useState(toLocalDateTime(promotion?.startsAt))
+  const [endsAt, setEndsAt] = useState(toLocalDateTime(promotion?.endsAt || new Date(Date.now() + 7 * 86400000)))
+  const [isActive, setIsActive] = useState(promotion?.isActive ?? true)
+
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    onSave({
+      name,
+      code: code.trim().toUpperCase(),
+      description,
+      discountType,
+      discountValue: Number(discountValue),
+      startsAt: new Date(startsAt).toISOString(),
+      endsAt: new Date(endsAt).toISOString(),
+      isActive,
+    })
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box">
+        <div className="modal-head">
+          <h3>{promotion ? 'Chỉnh sửa khuyến mãi' : 'Tạo chương trình khuyến mãi'}</h3>
+          <button type="button" className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div className="form-field">
+              <label>Tên chương trình *</label>
+              <input value={name} onChange={(event) => setName(event.target.value)} maxLength={150} required />
+            </div>
+            <div className="form-field">
+              <label>Mã khuyến mãi *</label>
+              <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} maxLength={40} required />
+            </div>
+            <div className="form-field">
+              <label>Mô tả</label>
+              <textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
+            </div>
+            <div className="modal-grid-2">
+              <div className="form-field">
+                <label>Kiểu giảm giá</label>
+                <select value={discountType} onChange={(event) => setDiscountType(event.target.value)}>
+                  <option value="percent">Phần trăm (%)</option>
+                  <option value="amount">Số tiền (₫)</option>
+                </select>
+              </div>
+              <div className="form-field">
+                <label>Mức giảm *</label>
+                <input type="number" min="0.01" max={discountType === 'percent' ? 100 : undefined} step="0.01" value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} required />
+              </div>
+            </div>
+            <div className="modal-grid-2">
+              <div className="form-field">
+                <label>Bắt đầu *</label>
+                <input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} required />
+              </div>
+              <div className="form-field">
+                <label>Kết thúc *</label>
+                <input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} required />
+              </div>
+            </div>
+            <label className="module-checkbox"><input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Cho phép áp dụng</label>
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="button ghost" onClick={onClose}>Hủy</button>
+            <button type="submit" className="button primary">Lưu khuyến mãi</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function ReviewModal({ products, onClose, onSave }) {
+  const [customerName, setCustomerName] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [productId, setProductId] = useState(products[0]?.id || '')
+  const [rating, setRating] = useState(5)
+  const [comment, setComment] = useState('')
+
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    onSave({ customerName, customerEmail: customerEmail || null, productId: Number(productId), rating: Number(rating), comment })
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box">
+        <div className="modal-head">
+          <h3>Nhập đánh giá khách hàng</h3>
+          <button type="button" className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div className="form-field">
+              <label>Sản phẩm *</label>
+              <select value={productId} onChange={(event) => setProductId(event.target.value)} required>
+                <option value="" disabled>Chọn sản phẩm</option>
+                {products.map((product) => <option key={product.id} value={product.id}>{product.name} ({product.productCode})</option>)}
+              </select>
+            </div>
+            <div className="form-field">
+              <label>Tên khách hàng *</label>
+              <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} maxLength={100} required />
+            </div>
+            <div className="form-field">
+              <label>Email</label>
+              <input type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} maxLength={100} />
+            </div>
+            <div className="form-field">
+              <label>Đánh giá</label>
+              <select value={rating} onChange={(event) => setRating(event.target.value)}>
+                <option value="5">5 sao - Rất hài lòng</option>
+                <option value="4">4 sao - Hài lòng</option>
+                <option value="3">3 sao - Bình thường</option>
+                <option value="2">2 sao - Chưa hài lòng</option>
+                <option value="1">1 sao - Không hài lòng</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label>Nội dung đánh giá *</label>
+              <textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength={1000} required />
+            </div>
+            <p className="module-form-note">Đánh giá mới sẽ ở trạng thái chờ duyệt.</p>
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="button ghost" onClick={onClose}>Hủy</button>
+            <button type="submit" className="button primary" disabled={products.length === 0}>Lưu đánh giá</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function TimelineStep({ label, done = false }) {
+  return (
+    <div className={`timeline-step ${done ? 'done' : ''}`}>
+      <span>{done ? '✓' : '○'}</span>
+      <strong>{label}</strong>
+    </div>
+  )
+}
+
+function AdminKpi({ label, value, tone = 'default' }) {
+  return (
+    <div className={`admin-kpi ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>Dữ liệu cập nhật trực tiếp</small>
+    </div>
+  )
+}
+
+function AdminToast({ message }) {
+  return (
+    <div className="admin-toast">
+      <Check size={15} />{message}
+    </div>
+  )
+}
+
+function SystemStatus({ name, value }) {
+  return (
+    <div className="system-status">
+      <i />
+      <div>
+        <strong>{name}</strong>
+        <span>{value}</span>
+      </div>
+    </div>
+  )
+}
+
+function CleanMetric({ label, value, tone }) {
+  return (
+    <div className="metric-card">
+      <div className={`metric-icon ${tone}`}>
+        <TrendingUp size={21} />
+      </div>
+      <div className="metric-label">{label}</div>
+      <strong className="metric-value">{value}</strong>
+      <div className="metric-foot">
+        <span className="trend">Realtime</span>
+        <span>Từ SmartStock API</span>
+      </div>
+    </div>
+  )
+}

@@ -58,15 +58,6 @@ public class AuthController(IAuthService authService) : ControllerBase
         return Ok(result);
     }
 
-    [HttpPost("forgot-password")]
-    [AllowAnonymous]
-    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request)
-    {
-        var result = await authService.ForgotPasswordAsync(request);
-        if (result == null) return NotFound(new { message = "Không tìm thấy tài khoản với email này hoặc tài khoản đã bị khóa" });
-        return Ok(result);
-    }
-
     /// <summary>
     /// Logout: JWT là stateless nên client chỉ cần xoá token.
     /// Endpoint này trả về 200 để frontend biết đã logout thành công.

@@ -136,8 +136,11 @@ public class PaymentsController(AppDbContext db) : ControllerBase
             if (order == null)
                 return NotFound(new { message = "Không tìm thấy đơn hàng" });
 
-            if (order.Status is "cancelled" or "returned")
+            if (order.Status is "cancelled" or "returned" or "partially_returned")
                 return BadRequest(new { message = $"Không thể thanh toán cho đơn hàng đã {order.Status}" });
+
+            if (order.PaidAmount + request.Amount > order.FinalAmount)
+                return BadRequest(new { message = "Số tiền thanh toán vượt quá số tiền còn phải thu" });
 
             var payment = new Payment
             {
