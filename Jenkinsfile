@@ -4,7 +4,8 @@ pipeline {
     environment {
         IMAGE_BACKEND     = "smartstock-backend"
         IMAGE_FRONTEND    = "smartstock-frontend"
-        SERVER_HOST       = "YOUR_SERVER_IP"   // ← Thay IP production của bạn
+        // Điền IP hoặc Domain của máy chủ deploy (nếu deploy lên VPS)
+        SERVER_HOST       = "YOUR_SERVER_IP"
         SERVER_USER       = "root"
         DEPLOY_DIR        = "~/smartstock"
     }
@@ -16,13 +17,8 @@ pipeline {
         // ─────────────────────────────────────────────
         stage('Checkout') {
             steps {
-                checkout([$class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/YOUR_USERNAME/YOUR_REPO.git',  // ← Thay URL repo
-                        credentialsId: 'github-pat'
-                    ]]
-                ])
+                // Tự động lấy branch và config Git từ cấu hình Pipeline Job trên Jenkins
+                checkout scm
             }
         }
 
@@ -72,9 +68,12 @@ pipeline {
         }
 
         // ─────────────────────────────────────────────
-        // 4. Deploy lên Production server qua SSH
+        // 4. Deploy lên Production server qua SSH (Tùy chọn)
         // ─────────────────────────────────────────────
         stage('Deploy to Production') {
+            when {
+                expression { return env.SERVER_HOST != 'YOUR_SERVER_IP' && env.SERVER_HOST != '' }
+            }
             steps {
                 withCredentials([
                     usernamePassword(
@@ -84,7 +83,7 @@ pipeline {
                     ),
                     string(credentialsId: 'db-conn', variable: 'DB_CONN'),
                     string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
-                    file(credentialsId: 'docker-compose-prod', variable: 'COMPOSE_FILE')
+                    string(credentialsId: 'db-sa-password', variable: 'DB_SA_PASS')
                 ]) {
                     sshagent(credentials: ['server-ssh-key']) {
                         sh """
@@ -94,7 +93,7 @@ pipeline {
 
                             echo "==> Copying docker-compose.prod.yml to server..."
                             scp -o StrictHostKeyChecking=no \
-                                \$COMPOSE_FILE \
+                                docker-compose.prod.yml \
                                 ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/docker-compose.yml
 
                             echo "==> Running deployment on server..."
@@ -105,6 +104,7 @@ pipeline {
 DOCKER_USER=\$DOCKER_USER
 DB_CONNECTION_STRING=\$DB_CONN
 JWT_SECRET=\$JWT_SECRET
+DB_SA_PASSWORD=\$DB_SA_PASS
 ENVEOF
 
                                 echo \"\$DOCKER_PASS\" | docker login -u \$DOCKER_USER --password-stdin && \
@@ -125,7 +125,7 @@ ENVEOF
 
     post {
         success {
-            echo 'Pipeline SUCCESS - App deployed!'
+            echo 'Pipeline SUCCESS - Done!'
         }
         failure {
             echo 'Pipeline FAILED - Check logs!'
