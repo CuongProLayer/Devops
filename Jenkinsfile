@@ -17,8 +17,7 @@ pipeline {
         // ─────────────────────────────────────────────
         stage('Checkout') {
             steps {
-                // Tự động lấy branch và config Git từ cấu hình Pipeline Job trên Jenkins
-                checkout scm
+                git branch: 'main', url: 'https://github.com/CuongProLayer/Devops.git'
             }
         }
 
