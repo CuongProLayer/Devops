@@ -4,26 +4,26 @@ pipeline {
     environment {
         IMAGE_BACKEND     = "smartstock-backend"
         IMAGE_FRONTEND    = "smartstock-frontend"
-        // Điền IP hoặc Domain của máy chủ deploy (nếu deploy lên VPS)
-        SERVER_HOST       = "YOUR_SERVER_IP"
-        SERVER_USER       = "root"
-        DEPLOY_DIR        = "~/smartstock"
+        // Điền Public IPv4 của máy ảo EC2 (lấy từ AWS Console)
+        SERVER_HOST       = "YOUR_EC2_PUBLIC_IP"
+        SERVER_USER       = "ubuntu"           // AWS Ubuntu EC2 default user
+        DEPLOY_DIR        = "/home/ubuntu/smartstock"
     }
 
     stages {
 
-        // ─────────────────────────────────────────────
+        // ---------------------------------------------
         // 1. Checkout source code từ GitHub
-        // ─────────────────────────────────────────────
+        // ---------------------------------------------
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/CuongProLayer/Devops.git'
             }
         }
 
-        // ─────────────────────────────────────────────
+        // ---------------------------------------------
         // 2. Build & Push Backend image (.NET 10)
-        // ─────────────────────────────────────────────
+        // ---------------------------------------------
         stage('Build & Push Backend') {
             steps {
                 withCredentials([usernamePassword(
@@ -45,9 +45,9 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────────
+        // ---------------------------------------------
         // 3. Build & Push Frontend image (React + Nginx)
-        // ─────────────────────────────────────────────
+        // ---------------------------------------------
         stage('Build & Push Frontend') {
             steps {
                 withCredentials([usernamePassword(
@@ -66,9 +66,9 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────────
+        // ---------------------------------------------
         // 4. Deploy lên Production server qua SSH (Tùy chọn)
-        // ─────────────────────────────────────────────
+        // ---------------------------------------------
         stage('Deploy to Production') {
             when {
                 expression { return env.SERVER_HOST != 'YOUR_SERVER_IP' && env.SERVER_HOST != '' }

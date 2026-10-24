@@ -1,19 +1,31 @@
-name: CI/CD - Docker Build & Push
+name: 🚀 CI/CD – Build, Push & Deploy to AWS EC2
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deploy even if no code changes'
+        required: false
+        default: 'false'
 
+env:
+  BACKEND_IMAGE:  ${{ secrets.DOCKER_USERNAME }}/smartstock-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/smartstock-frontend
 
 jobs:
-  build-and-push:
-    name: Build & Push Docker Image
+  # ─────────────────────────────────────────────
+  # JOB 1: Build & Push Backend (.NET 10)
+  # ─────────────────────────────────────────────
+  build-backend:
+    name: 🔨 Build & Push Backend
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
@@ -25,19 +37,139 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Extract metadata for backend image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
+
+      - name: Build & push Backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          dockerfile: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to:   type=gha,scope=backend,mode=max
+
+  # ─────────────────────────────────────────────
+  # JOB 2: Build & Push Frontend (React + Nginx)
+  # ─────────────────────────────────────────────
+  build-frontend:
+    name: 🎨 Build & Push Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata for frontend image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
+
+      - name: Build & push Frontend image
+        uses: docker/build-push-action@v6
         with:
           context: .
+          dockerfile: ./Dockerfile
           push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/smartstock-frontend:latest
-            ${{ secrets.DOCKER_USERNAME }}/smartstock-frontend:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to:   type=gha,scope=frontend,mode=max
 
-      # (Tùy chọn) Kích hoạt tự động Deploy lên Render qua Deploy Hook
-      - name: Trigger Render Deploy Hook (nếu có)
-        if: ${{ env.RENDER_DEPLOY_HOOK_URL != '' }}
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+  # ─────────────────────────────────────────────
+  # JOB 3: Deploy lên AWS EC2 qua SSH
+  # ─────────────────────────────────────────────
+  deploy:
+    name: 🌐 Deploy to AWS EC2
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    environment: production
+
+    steps:
+      - name: Checkout code (lấy docker-compose.prod.yml)
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host:        ${{ secrets.EC2_HOST }}
+          username:    ${{ secrets.EC2_USER }}
+          key:         ${{ secrets.EC2_SSH_KEY }}
+          port:        22
+          script_stop: true
+          script: |
+            set -e
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "  SmartStock – Deployment Started"
+            echo "  $(date '+%Y-%m-%d %H:%M:%S %Z')"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            mkdir -p ~/smartstock
+            cd ~/smartstock
+
+            cat > .env << 'ENVEOF'
+            DOCKER_USER=${{ secrets.DOCKER_USERNAME }}
+            DB_SA_PASSWORD=${{ secrets.DB_SA_PASSWORD }}
+            DB_CONNECTION_STRING=${{ secrets.DB_CONNECTION_STRING }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            ENVEOF
+
+            curl -fsSL \
+              "https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.prod.yml" \
+              -o docker-compose.yml
+
+            echo "${{ secrets.DOCKER_PASSWORD }}" | \
+              docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+            docker compose --env-file .env pull
+            docker compose --env-file .env up -d --remove-orphans
+            docker image prune -f
+
+            echo ""
+            echo "✅ Deployment completed successfully!"
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+      - name: Health check – Backend API
         run: |
-          curl -X POST "$RENDER_DEPLOY_HOOK_URL"
+          echo "Waiting 30s for services to start..."
+          sleep 30
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 10 \
+            "http://${{ secrets.EC2_HOST }}:5000/health" || echo "000")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Backend Health Check PASSED (HTTP $HTTP_STATUS)"
+          else
+            echo "Backend returned HTTP $HTTP_STATUS – check container logs"
+          fi
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| ------- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | http://${{ secrets.EC2_HOST }}:3000 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend API | http://${{ secrets.EC2_HOST }}:5000/swagger |" >> $GITHUB_STEP_SUMMARY
+          echo "| Health | http://${{ secrets.EC2_HOST }}:5000/health |" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

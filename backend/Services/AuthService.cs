@@ -33,17 +33,24 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
 
     public async Task<AuthResponse?> RegisterAsync(RegisterRequest request)
     {
-        if (await db.Users.AnyAsync(u => u.Email == request.Email || u.Username == request.Username))
+        var email = request.Email.Trim().ToLower();
+        var username = request.Username.Trim();
+        if (await db.Users.AnyAsync(u => u.Email.ToLower() == email || u.Username.ToLower() == username.ToLower()))
             return null;
+
+        var allowedRoles = new[] { "admin", "warehouse", "staff" };
+        var role = !string.IsNullOrWhiteSpace(request.Role) && allowedRoles.Contains(request.Role.Trim().ToLower())
+            ? request.Role.Trim().ToLower()
+            : "staff";
 
         var user = new User
         {
-            Username = request.Username,
-            Email = request.Email,
+            Username = username,
+            Email = email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            FullName = request.FullName,
-            Phone = request.Phone ?? "",
-            Role = request.Role
+            FullName = request.FullName.Trim(),
+            Phone = request.Phone?.Trim() ?? "",
+            Role = role
         };
         db.Users.Add(user);
         await db.SaveChangesAsync();

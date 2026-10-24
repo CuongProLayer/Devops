@@ -1,0 +1,149 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job">
+  <actions/>
+  <description>SmartStock CI/CD Pipeline - DevOps Demo</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps">
+    <script>pipeline {
+    agent any
+
+    environment {
+        IMAGE_BACKEND     = &quot;smartstock-backend&quot;
+        IMAGE_FRONTEND    = &quot;smartstock-frontend&quot;
+        // Äiá»n IP hoáº·c Domain cá»§a mÃ¡y chá»§ deploy (náº¿u deploy lÃªn VPS)
+        SERVER_HOST       = &quot;YOUR_SERVER_IP&quot;
+        SERVER_USER       = &quot;root&quot;
+        DEPLOY_DIR        = &quot;~/smartstock&quot;
+    }
+
+    stages {
+
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // 1. Checkout source code tá»« GitHub
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        stage(&apos;Checkout&apos;) {
+            steps {
+                git branch: &apos;main&apos;, url: &apos;https://github.com/CuongProLayer/Devops.git&apos;
+            }
+        }
+
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // 2. Build &amp; Push Backend image (.NET 10)
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        stage(&apos;Build &amp; Push Backend&apos;) {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: &apos;dockerhub-cred&apos;,
+                    usernameVariable: &apos;DOCKER_USER&apos;,
+                    passwordVariable: &apos;DOCKER_PASS&apos;
+                )]) {
+                    sh &quot;&quot;&quot;
+                        echo &quot;==&gt; Building Backend image...&quot;
+                        docker build -t docker.io/\$DOCKER_USER/${IMAGE_BACKEND}:latest ./backend
+
+                        echo &quot;==&gt; Logging in to Docker Hub...&quot;
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+
+                        echo &quot;==&gt; Pushing Backend image...&quot;
+                        docker push docker.io/\$DOCKER_USER/${IMAGE_BACKEND}:latest
+                    &quot;&quot;&quot;
+                }
+            }
+        }
+
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // 3. Build &amp; Push Frontend image (React + Nginx)
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        stage(&apos;Build &amp; Push Frontend&apos;) {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: &apos;dockerhub-cred&apos;,
+                    usernameVariable: &apos;DOCKER_USER&apos;,
+                    passwordVariable: &apos;DOCKER_PASS&apos;
+                )]) {
+                    sh &quot;&quot;&quot;
+                        echo &quot;==&gt; Building Frontend image...&quot;
+                        docker build -t docker.io/\$DOCKER_USER/${IMAGE_FRONTEND}:latest .
+
+                        echo &quot;==&gt; Pushing Frontend image...&quot;
+                        docker push docker.io/\$DOCKER_USER/${IMAGE_FRONTEND}:latest
+                    &quot;&quot;&quot;
+                }
+            }
+        }
+
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // 4. Deploy lÃªn Production server qua SSH (TÃ¹y chá»n)
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        stage(&apos;Deploy to Production&apos;) {
+            when {
+                expression { return env.SERVER_HOST != &apos;YOUR_SERVER_IP&apos; &amp;&amp; env.SERVER_HOST != &apos;&apos; }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: &apos;dockerhub-cred&apos;,
+                        usernameVariable: &apos;DOCKER_USER&apos;,
+                        passwordVariable: &apos;DOCKER_PASS&apos;
+                    ),
+                    string(credentialsId: &apos;db-conn&apos;, variable: &apos;DB_CONN&apos;),
+                    string(credentialsId: &apos;jwt-secret&apos;, variable: &apos;JWT_SECRET&apos;),
+                    string(credentialsId: &apos;db-sa-password&apos;, variable: &apos;DB_SA_PASS&apos;)
+                ]) {
+                    sshagent(credentials: [&apos;server-ssh-key&apos;]) {
+                        sh &quot;&quot;&quot;
+                            echo &quot;==&gt; Creating deploy directory on server...&quot;
+                            ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_HOST} \
+                                &quot;mkdir -p ${DEPLOY_DIR}&quot;
+
+                            echo &quot;==&gt; Copying docker-compose.prod.yml to server...&quot;
+                            scp -o StrictHostKeyChecking=no \
+                                docker-compose.prod.yml \
+                                ${SERVER_USER}@${SERVER_HOST}:${DEPLOY_DIR}/docker-compose.yml
+
+                            echo &quot;==&gt; Running deployment on server...&quot;
+                            ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_HOST} &quot;
+                                cd ${DEPLOY_DIR} &amp;&amp; \
+
+                                cat &gt; .env &lt;&lt; &apos;ENVEOF&apos;
+DOCKER_USER=\$DOCKER_USER
+DB_CONNECTION_STRING=\$DB_CONN
+JWT_SECRET=\$JWT_SECRET
+DB_SA_PASSWORD=\$DB_SA_PASS
+ENVEOF
+
+                                echo \&quot;\$DOCKER_PASS\&quot; | docker login -u \$DOCKER_USER --password-stdin &amp;&amp; \
+                                docker compose --env-file .env pull &amp;&amp; \
+                                docker compose --env-file .env down &amp;&amp; \
+                                docker compose --env-file .env up -d &amp;&amp; \
+                                docker image prune -f &amp;&amp; \
+
+                                echo &apos;==&gt; Deployment completed!&apos; &amp;&amp; \
+                                docker ps
+                            &quot;
+                        &quot;&quot;&quot;
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo &apos;Pipeline SUCCESS - Done!&apos;
+        }
+        failure {
+            echo &apos;Pipeline FAILED - Check logs!&apos;
+        }
+        always {
+            sh &apos;docker logout || true&apos;
+        }
+    }
+}
+</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

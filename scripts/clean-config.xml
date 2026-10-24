@@ -1,0 +1,85 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job">
+  <actions/>
+  <description>SmartStock CI/CD Pipeline - DevOps Demo</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps">
+    <script>pipeline {
+    agent any
+
+    environment {
+        IMAGE_BACKEND     = &quot;smartstock-backend&quot;
+        IMAGE_FRONTEND    = &quot;smartstock-frontend&quot;
+        SERVER_HOST       = &quot;YOUR_SERVER_IP&quot;
+        SERVER_USER       = &quot;root&quot;
+        DEPLOY_DIR        = &quot;~/smartstock&quot;
+    }
+
+    stages {
+        stage(&apos;Checkout&apos;) {
+            steps {
+                git branch: &apos;main&apos;, url: &apos;https://github.com/CuongProLayer/Devops.git&apos;
+            }
+        }
+
+        stage(&apos;Build &amp; Push Backend&apos;) {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: &apos;dockerhub-cred&apos;,
+                    usernameVariable: &apos;DOCKER_USER&apos;,
+                    passwordVariable: &apos;DOCKER_PASS&apos;
+                )]) {
+                    sh &quot;&quot;&quot;
+                        echo &quot;==&gt; Building Backend image...&quot;
+                        docker build -t docker.io/\$DOCKER_USER/${IMAGE_BACKEND}:latest ./backend
+
+                        echo &quot;==&gt; Logging in to Docker Hub...&quot;
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+
+                        echo &quot;==&gt; Pushing Backend image...&quot;
+                        docker push docker.io/\$DOCKER_USER/${IMAGE_BACKEND}:latest
+                    &quot;&quot;&quot;
+                }
+            }
+        }
+
+        stage(&apos;Build &amp; Push Frontend&apos;) {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: &apos;dockerhub-cred&apos;,
+                    usernameVariable: &apos;DOCKER_USER&apos;,
+                    passwordVariable: &apos;DOCKER_PASS&apos;
+                )]) {
+                    sh &quot;&quot;&quot;
+                        echo &quot;==&gt; Building Frontend image...&quot;
+                        docker build -t docker.io/\$DOCKER_USER/${IMAGE_FRONTEND}:latest .
+
+                        echo &quot;==&gt; Logging in to Docker Hub...&quot;
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+
+                        echo &quot;==&gt; Pushing Frontend image...&quot;
+                        docker push docker.io/\$DOCKER_USER/${IMAGE_FRONTEND}:latest
+                    &quot;&quot;&quot;
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo &apos;Pipeline SUCCESS - Done!&apos;
+        }
+        failure {
+            echo &apos;Pipeline FAILED - Check logs!&apos;
+        }
+        always {
+            sh &apos;docker logout || true&apos;
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

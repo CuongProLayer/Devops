@@ -110,10 +110,20 @@ export const api = {
   },
 
   async register(data) {
-    return apiRequest('/auth/register', {
+    const res = await apiRequest('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     })
+    if (res?.token) {
+      setToken(res.token)
+      setStoredUser({
+        userId: res.userId,
+        email: res.email,
+        fullName: res.fullName,
+        role: res.role,
+      })
+    }
+    return res
   },
 
   async getProfile() {

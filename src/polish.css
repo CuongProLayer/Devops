@@ -117,3 +117,210 @@
 @media (max-width: 1050px) { .clean-admin-sidebar { width: 230px; flex-basis: 230px; }.clean-admin-sidebar + .main-content .admin-card-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)) !important; }.clean-admin-sidebar + .main-content .admin-kpi-row, .clean-admin-sidebar + .main-content .report-kpi-grid, .clean-admin-sidebar + .main-content .health-metrics, .clean-admin-sidebar + .main-content .security-summary { grid-template-columns: repeat(2, minmax(220px, 1fr)) !important; } }
 @media (max-width: 760px) { .clean-admin-sidebar { width: 270px; flex-basis: 270px; }.main-content .page-content { padding: 28px 20px 50px; }.clean-admin-sidebar + .main-content .admin-card-grid, .clean-admin-sidebar + .main-content .admin-kpi-row, .clean-admin-sidebar + .main-content .report-kpi-grid, .clean-admin-sidebar + .main-content .health-metrics, .clean-admin-sidebar + .main-content .security-summary { grid-template-columns: 1fr !important; }.admin-toolbar { flex-wrap: wrap; }.admin-search { min-width: 100%; max-width: none; }.admin-toolbar .button { flex: 1; }.order-tabs { width: 100%; overflow-x: auto; }.order-tabs button { flex: 0 0 auto; }.page-heading h1 { font-size: 26px; } }
 @media (max-width: 760px) { .admin-table-panel .admin-pagination { justify-content: center; flex-wrap: wrap; }.admin-table-panel .admin-pagination span { flex: 0 0 100%; text-align: center; line-height: 20px; }.admin-table-panel .admin-pagination button { width: 31px; height: 31px; } }
+
+/* ----------------------------------------------------
+   AUTH SWITCHER (ĐĂNG NHẬP / ĐĂNG KÝ) & LOGOUT BUTTONS
+---------------------------------------------------- */
+.auth-tab-switch {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  margin-bottom: 24px;
+  background: #eef4f0;
+  border: 1px solid #dfe9e3;
+  border-radius: 10px;
+}
+.auth-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 1;
+  height: 38px;
+  color: #6a7c74;
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.auth-tab-btn:hover {
+  color: #263532;
+  background: #ffffff66;
+}
+.auth-tab-btn.active {
+  color: #1f332f;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(31, 51, 47, 0.08);
+}
+.auth-row-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.auth-role-select {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  color: #33433f;
+  border: 1px solid #dfe7e2;
+  outline: 0;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: .2s;
+}
+.auth-role-select:focus {
+  border-color: #76ad9e;
+  box-shadow: 0 0 0 3px #dff1e9;
+}
+.auth-footer-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 12px;
+  color: #7b8b85;
+}
+.auth-switch-link {
+  padding: 0;
+  color: #ed6e56;
+  font-size: 12px;
+  font-weight: 700;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.18s;
+}
+.auth-switch-link:hover {
+  color: #d85b46;
+}
+.login-error-badge.success {
+  color: #155724;
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+}
+
+/* Header & Sidebar Logout Buttons */
+.admin-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px;
+  color: #d85b46;
+  background: #fff3f0;
+  border: 1px solid #f9d5ce;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.admin-logout-btn:hover {
+  color: #fff;
+  background: #ed6e56;
+  border-color: #ed6e56;
+  box-shadow: 0 4px 12px rgba(237, 110, 86, 0.25);
+  transform: translateY(-1px);
+}
+.sidebar-logout-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  color: #8c9c94;
+  background: #f4f7f5;
+  border: 1px solid #dfe7e2;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.sidebar-logout-btn:hover {
+  color: #d85b46;
+  background: #fff0eb;
+  border-color: #f7cac1;
+}
+.store-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  color: #d85b46;
+  background: #fff3f0;
+  border: 1px solid #f9d5ce;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.store-logout-btn:hover {
+  color: #fff;
+  background: #ed6e56;
+  border-color: #ed6e56;
+  box-shadow: 0 4px 12px rgba(237, 110, 86, 0.25);
+}
+.admin-dark .admin-logout-btn {
+  color: #f79d8b;
+  background: #392420;
+  border-color: #55332c;
+}
+.admin-dark .admin-logout-btn:hover {
+  color: #fff;
+  background: #ed6e56;
+}
+.admin-dark .sidebar-logout-btn {
+  color: #b1c7bc;
+  background: #1c302c;
+  border-color: #3a5c52;
+}
+.admin-dark .sidebar-logout-btn:hover {
+  color: #f79d8b;
+  background: #392420;
+  border-color: #55332c;
+}
+
+/* Password Input with Eye Toggle */
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.password-input-wrap input {
+  width: 100%;
+  padding-right: 42px !important;
+}
+.password-toggle-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: #8c9c94;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.18s ease, background-color 0.18s ease;
+}
+.password-toggle-btn:hover {
+  color: #1f332f;
+  background: #eef4f0;
+}
+

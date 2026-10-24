@@ -1,14 +1,16 @@
 services:
 
-  # ──────────────────────────────────────────
-  # SQL Server Database
-  # ──────────────────────────────────────────
+  # ──────────────────────────────────────────────
+  # SQL Server 2022 Database
+  # ──────────────────────────────────────────────
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: smartstock-db
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "${DB_SA_PASSWORD}"
+      # Giới hạn bộ nhớ SQL Server (quan trọng khi dùng t2.micro/t3.micro)
+      MSSQL_MEMORY_LIMIT_MB: "512"
     ports:
       - "1433:1433"
     volumes:
@@ -16,12 +18,18 @@ services:
     restart: always
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${DB_SA_PASSWORD}' -C -Q 'SELECT 1' || exit 1"]
+      interval: 30s
+      retries: 5
+      start_period: 60s
+      timeout: 10s
 
-  # ──────────────────────────────────────────
+  # ──────────────────────────────────────────────
   # Backend (.NET 10 API)
-  # ──────────────────────────────────────────
+  # ──────────────────────────────────────────────
   smartstock-backend:
-    image: docker.io/${DOCKER_USER}/smartstock-backend:latest
+    image: ${DOCKER_USER}/smartstock-backend:latest
     container_name: smartstock-backend
     restart: always
     ports:
@@ -29,30 +37,43 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "${DB_CONNECTION_STRING}"
+      Jwt__Key: "${JWT_SECRET}"
+      Jwt__Issuer: "SmartStock.API"
+      Jwt__Audience: "SmartStock.Client"
     volumes:
       - uploads-data:/app/uploads
     depends_on:
-      - sqlserver
+      sqlserver:
+        condition: service_healthy
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
 
-  # ──────────────────────────────────────────
+  # ──────────────────────────────────────────────
   # Frontend (React + Nginx)
-  # ──────────────────────────────────────────
+  # ──────────────────────────────────────────────
   smartstock-frontend:
-    image: docker.io/${DOCKER_USER}/smartstock-frontend:latest
+    image: ${DOCKER_USER}/smartstock-frontend:latest
     container_name: smartstock-frontend
     restart: always
     ports:
       - "3000:80"
     depends_on:
-      - smartstock-backend
+      smartstock-backend:
+        condition: service_healthy
     networks:
       - app-network
 
 volumes:
   sqlserver-data:
+    driver: local
   uploads-data:
+    driver: local
 
 networks:
   app-network:

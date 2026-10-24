@@ -20,11 +20,11 @@ public class AuthController(IAuthService authService) : ControllerBase
     }
 
     [HttpPost("register")]
-    [Authorize(Roles = "admin")]
+    [AllowAnonymous]
     public async Task<IActionResult> Register(RegisterRequest request)
     {
         var result = await authService.RegisterAsync(request);
-        if (result == null) return BadRequest(new { message = "Email hoặc username đã tồn tại" });
+        if (result == null) return BadRequest(new { message = "Email hoặc tên đăng nhập đã tồn tại trong hệ thống" });
         return Ok(result);
     }
 

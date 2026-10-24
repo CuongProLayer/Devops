@@ -25,6 +25,12 @@ import {
   RefreshCw,
   Trash2,
   Edit,
+  LogOut,
+  UserPlus,
+  LogIn,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { api, formatVND, formatDate } from './api'
 
@@ -40,24 +46,55 @@ const text = {
 // AUTH: LOGIN & RECOVERY
 // ----------------------------------------------------
 export function CleanLogin({ onLogin }) {
-  const [screen, setScreen] = useState('login')
+  const [screen, setScreen] = useState('login') // 'login' | 'register' | 'forgot'
   const [email, setEmail] = useState('admin@smartstock.vn')
-  const [password, setPassword] = useState('admin123')
+  const [password, setPassword] = useState('Admin@123')
+  const [regData, setRegData] = useState({
+    username: '',
+    fullName: '',
+    email: '',
+    phone: '',
+    password: '',
+    role: 'staff',
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false)
 
-  if (screen !== 'login') return <CleanRecovery screen={screen} onBack={() => setScreen('login')} />
+  if (screen === 'forgot') {
+    return <CleanRecovery screen={screen} onBack={() => { setScreen('login'); setError('') }} />
+  }
 
-  const handleSubmit = async (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setSuccessMsg('')
     try {
       const res = await api.login(email.trim(), password)
       onLogin(res.role, res)
     } catch (err) {
       setError(err.message || 'Email hoặc mật khẩu không chính xác')
     } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setSuccessMsg('')
+    try {
+      const res = await api.register(regData)
+      setSuccessMsg('Đăng ký thành công! Đang tự động đăng nhập...')
+      setTimeout(() => {
+        onLogin(res.role, res)
+      }, 700)
+    } catch (err) {
+      setError(err.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin.')
       setLoading(false)
     }
   }
@@ -71,6 +108,7 @@ export function CleanLogin({ onLogin }) {
     setPassword(demoPass)
     setLoading(true)
     setError('')
+    setSuccessMsg('')
     try {
       const res = await api.login(demoEmail, demoPass)
       onLogin(res.role, res)
@@ -90,11 +128,11 @@ export function CleanLogin({ onLogin }) {
         </div>
         <div className="login-art-copy">
           <div className="eyebrow">INVENTORY OS &bull; LIVE CONNECTED</div>
-          <h1>{text.heroTitle}<br /><em>{text.heroAccent}</em></h1>
-          <p>{text.heroCopy}</p>
+          <h1>{screen === 'register' ? 'Gia nhập nền tảng' : text.heroTitle}<br /><em>{screen === 'register' ? 'quản trị hiện đại.' : text.heroAccent}</em></h1>
+          <p>{screen === 'register' ? 'Tạo tài khoản quản trị hoặc nhân viên để phân quyền làm việc theo nhiệm vụ được chỉ định.' : text.heroCopy}</p>
           <div className="clean-login-stat">
             <TrendingUp size={16} />
-            <strong>REST API v1</strong>
+            <strong>REST API v1 &bull; JWT Auth</strong>
             <span>Đã kết nối Database SQL Server</span>
           </div>
         </div>
@@ -105,130 +143,230 @@ export function CleanLogin({ onLogin }) {
       </div>
 
       <div className="login-form-wrap">
-        <form className="login-form" onSubmit={handleSubmit}>
+        <div className="login-form">
           <div className="mobile-brand">
             <div className="brand-mark">&#10022;</div>
             <div className="brand-name">smart<span>stock</span></div>
           </div>
+
+          {/* Segmented Auth Switcher */}
+          <div className="auth-tab-switch">
+            <button
+              type="button"
+              className={`auth-tab-btn ${screen === 'login' ? 'active' : ''}`}
+              onClick={() => { setScreen('login'); setError(''); setSuccessMsg('') }}
+            >
+              <LogIn size={15} /> Đăng nhập
+            </button>
+            <button
+              type="button"
+              className={`auth-tab-btn ${screen === 'register' ? 'active' : ''}`}
+              onClick={() => { setScreen('register'); setError(''); setSuccessMsg('') }}
+            >
+              <UserPlus size={15} /> Đăng ký
+            </button>
+          </div>
+
           <div className="login-heading">
-            <div className="eyebrow">CHÀO MỪNG TRỞ LẠI</div>
-            <h2>{text.welcome}</h2>
-            <p>{text.welcomeCopy}</p>
+            <div className="eyebrow">{screen === 'register' ? 'TẠO TÀI KHOẢN MỚI' : 'CHÀO MỪNG TRỞ LẠI'}</div>
+            <h2>{screen === 'register' ? 'Đăng ký tài khoản' : text.welcome}</h2>
+            <p>{screen === 'register' ? 'Điền thông tin bên dưới để khởi tạo tài khoản vào hệ thống.' : text.welcomeCopy}</p>
           </div>
 
           {error && <div className="login-error-badge">{error}</div>}
+          {successMsg && <div className="login-error-badge success">{successMsg}</div>}
 
-          <label>
-            Email hoặc tên đăng nhập
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@smartstock.vn"
-              required
-            />
-          </label>
+          {screen === 'login' ? (
+            <form onSubmit={handleLoginSubmit}>
+              <label>
+                Email hoặc tên đăng nhập
+                <input
+                  type="text"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@smartstock.vn hoặc admin"
+                  required
+                />
+              </label>
 
-          <label>
-            Mật khẩu
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="admin123"
-              required
-            />
-          </label>
+              <label>
+                Mật khẩu
+                <div className="password-input-wrap">
+                  <input
+                    type={showLoginPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Nhập mật khẩu"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    title={showLoginPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    tabIndex={-1}
+                  >
+                    {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </label>
 
-          <div className="login-options">
-            <label className="check-label">
-              <input type="checkbox" defaultChecked /> Ghi nhớ đăng nhập
-            </label>
-            <button type="button" className="forgot-button" onClick={() => setScreen('forgot')}>
-              Quên mật khẩu?
-            </button>
-          </div>
+              <div className="login-options">
+                <label className="check-label">
+                  <input type="checkbox" defaultChecked /> Ghi nhớ đăng nhập
+                </label>
+                <button type="button" className="forgot-button" onClick={() => setScreen('forgot')}>
+                  Quên mật khẩu?
+                </button>
+              </div>
 
-          <button className="button primary login-button" type="submit" disabled={loading}>
-            {loading ? 'Đang xác thực...' : 'Đăng nhập'} <ArrowUpRight size={17} />
-          </button>
+              <button className="button primary login-button" type="submit" disabled={loading}>
+                {loading ? 'Đang xác thực...' : 'Đăng nhập ngay'} <ArrowUpRight size={17} />
+              </button>
 
-          <div className="login-note">
-            <span /> Bảo mật JWT &amp; mã hóa mật khẩu BCrypt
-          </div>
+              <div className="auth-footer-link">
+                <span>Chưa có tài khoản?</span>
+                <button
+                  type="button"
+                  className="auth-switch-link"
+                  onClick={() => { setScreen('register'); setError(''); setSuccessMsg('') }}
+                >
+                  Đăng ký tài khoản mới &rarr;
+                </button>
+              </div>
 
-          <div className="demo-role-row">
-            <span>Đăng nhập nhanh:</span>
-            <button type="button" onClick={() => fillAndLogin('admin@smartstock.vn', 'admin123', 'admin')}>
-              Admin
-            </button>
-            <button type="button" onClick={() => fillAndLogin('staff@smartstock.vn', 'staff123', 'staff')}>
-              Staff
-            </button>
-            <button type="button" onClick={() => fillAndLogin('warehouse@smartstock.vn', 'warehouse123', 'warehouse')}>
-              Kho
-            </button>
-            <button type="button" onClick={() => fillAndLogin('', '', 'customer')}>
-              Khách hàng
-            </button>
-          </div>
-        </form>
+              <div className="login-note">
+                <span /> Bảo mật JWT &amp; mã hóa mật khẩu BCrypt
+              </div>
+
+              <div className="demo-role-row">
+                <span>Tài khoản mẫu:</span>
+                <button type="button" onClick={() => fillAndLogin('admin@smartstock.vn', 'Admin@123', 'admin')} title="Toàn quyền admin">
+                  👑 Admin
+                </button>
+                <button type="button" onClick={() => fillAndLogin('warehouse@smartstock.vn', 'Warehouse@123', 'warehouse')} title="Quản lý kho & nhập hàng">
+                  📦 Kho
+                </button>
+                <button type="button" onClick={() => fillAndLogin('staff@smartstock.vn', 'Staff@123', 'staff')} title="Đơn hàng & khách hàng">
+                  🛒 Staff
+                </button>
+                <button type="button" onClick={() => fillAndLogin('', '', 'customer')} title="Giao diện mua sắm">
+                  Khách hàng
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleRegisterSubmit}>
+              <label>
+                Tên đăng nhập
+                <input
+                  type="text"
+                  value={regData.username}
+                  onChange={(e) => setRegData({ ...regData, username: e.target.value })}
+                  placeholder="Ví dụ: hoangnam, staff_01"
+                  required
+                  minLength={3}
+                  maxLength={50}
+                />
+              </label>
+
+              <label>
+                Họ và tên
+                <input
+                  type="text"
+                  value={regData.fullName}
+                  onChange={(e) => setRegData({ ...regData, fullName: e.target.value })}
+                  placeholder="Ví dụ: Nguyễn Hoàng Nam"
+                  required
+                  maxLength={100}
+                />
+              </label>
+
+              <div className="auth-row-2col">
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    value={regData.email}
+                    onChange={(e) => setRegData({ ...regData, email: e.target.value })}
+                    placeholder="nam@smartstock.vn"
+                    required
+                  />
+                </label>
+                <label>
+                  Số điện thoại
+                  <input
+                    type="tel"
+                    value={regData.phone}
+                    onChange={(e) => setRegData({ ...regData, phone: e.target.value })}
+                    placeholder="0912345678"
+                  />
+                </label>
+              </div>
+
+              <label>
+                Mật khẩu (tối thiểu 6 ký tự)
+                <div className="password-input-wrap">
+                  <input
+                    type={showRegisterPassword ? 'text' : 'password'}
+                    value={regData.password}
+                    onChange={(e) => setRegData({ ...regData, password: e.target.value })}
+                    placeholder="Nhập mật khẩu"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                    title={showRegisterPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    tabIndex={-1}
+                  >
+                    {showRegisterPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </label>
+
+              <label>
+                Vai trò hệ thống
+                <select
+                  className="auth-role-select"
+                  value={regData.role}
+                  onChange={(e) => setRegData({ ...regData, role: e.target.value })}
+                >
+                  <option value="staff">🛒 Nhân viên (Staff) — Quản lý đơn hàng, khách hàng, POS</option>
+                  <option value="warehouse">📦 Thủ kho (Warehouse) — Quản lý kho, tồn hàng, nhập hàng</option>
+                  <option value="admin">👑 Quản trị viên (Admin) — Toàn quyền hệ thống</option>
+                </select>
+              </label>
+
+              <button className="button primary login-button" type="submit" disabled={loading}>
+                {loading ? 'Đang tạo tài khoản...' : 'Đăng ký & Vào hệ thống'} <ArrowUpRight size={17} />
+              </button>
+
+              <div className="auth-footer-link">
+                <span>Đã có tài khoản?</span>
+                <button
+                  type="button"
+                  className="auth-switch-link"
+                  onClick={() => { setScreen('login'); setError(''); setSuccessMsg('') }}
+                >
+                  Đăng nhập ngay &rarr;
+                </button>
+              </div>
+
+              <div className="login-note">
+                <span /> Mật khẩu được mã hóa an toàn qua BCrypt Salted Hash
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </main>
   )
 }
 
 function CleanRecovery({ screen, onBack }) {
-  const register = screen === 'register'
-  const [formData, setFormData] = useState({ username: '', email: '', password: '', fullName: '', phone: '' })
-  const [msg, setMsg] = useState('')
-  const [messageType, setMessageType] = useState('success')
-  const [loading, setLoading] = useState(false)
-
-  if (!register) {
-    return (
-      <main className="login-page auth-secondary">
-        <div className="login-art">
-          <div className="login-art-top">
-            <div className="brand-mark">&#10022;</div>
-            <div className="brand-name">smart<span>stock</span></div>
-          </div>
-          <div className="login-art-copy">
-            <div className="eyebrow">SMARTSTOCK ACCOUNT</div>
-            <h1>Lấy lại quyền<br /><em>truy cập.</em></h1>
-          </div>
-        </div>
-        <div className="login-form-wrap">
-          <section className="login-form">
-            <button type="button" className="back-auth" onClick={onBack}>&larr; Quay lại đăng nhập</button>
-            <div className="login-heading">
-              <div className="eyebrow">KHÔI PHỤC TÀI KHOẢN</div>
-              <h2>Liên hệ quản trị viên</h2>
-              <p>Khôi phục qua email chưa được cấu hình. Quản trị viên có thể hỗ trợ đặt lại mật khẩu.</p>
-            </div>
-          </section>
-        </div>
-      </main>
-    )
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setMsg('')
-    try {
-      if (register) {
-        await api.register({ ...formData, role: 'staff' })
-        setMsg('Tạo tài khoản thành công! Bạn có thể đăng nhập ngay.')
-      }
-    } catch (err) {
-      setMessageType('error')
-      setMsg(err.message || 'Thao tác không thành công')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <main className="login-page auth-secondary">
       <div className="login-art">
@@ -238,79 +376,35 @@ function CleanRecovery({ screen, onBack }) {
         </div>
         <div className="login-art-copy">
           <div className="eyebrow">SMARTSTOCK ACCOUNT</div>
-          <h1>{register ? 'Bắt đầu hành trình' : 'Lấy lại quyền'}<br /><em>{register ? 'thông minh hơn.' : 'truy cập.'}</em></h1>
+          <h1>Lấy lại quyền<br /><em>truy cập.</em></h1>
+          <p>Hỗ trợ khôi phục tài khoản quản trị và nhân viên.</p>
         </div>
       </div>
       <div className="login-form-wrap">
-        <form className="login-form" onSubmit={handleSubmit}>
+        <section className="login-form">
           <button type="button" className="back-auth" onClick={onBack}>
             &larr; Quay lại đăng nhập
           </button>
-          <div className="login-heading">
-              <div className="eyebrow">TẠO TÀI KHOẢN</div>
-              <h2>Đăng ký tài khoản</h2>
-              <p>Tạo tài khoản hệ thống để bắt đầu vận hành.</p>
+          <div className="login-heading" style={{ marginTop: '20px' }}>
+            <div className="eyebrow">KHÔI PHỤC TÀI KHOẢN</div>
+            <h2>Liên hệ Quản trị viên</h2>
+            <p>
+              Để bảo vệ an toàn dữ liệu doanh nghiệp, việc đặt lại mật khẩu được quản trị viên xử lý trực tiếp.
+              Vui lòng liên hệ Admin hệ thống hoặc dùng tài khoản mặc định.
+            </p>
           </div>
-
-            {msg && <div className={`login-error-badge ${messageType === 'success' ? 'success' : ''}`}>{msg}</div>}
-
-          {register && (
-            <>
-              <label>
-                Tên đăng nhập
-                <input
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  placeholder="nhanvien_01"
-                  required
-                />
-              </label>
-              <label>
-                Họ và tên
-                <input
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  placeholder="Nguyễn Minh Anh"
-                  required
-                />
-              </label>
-              <label>
-                Số điện thoại
-                <input
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="0912345678"
-                />
-              </label>
-            </>
-          )}
-
-          <label>
-            Email
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="you@example.com"
-              required
-            />
-          </label>
-
-          <label>
-            Mật khẩu
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="Tối thiểu 6 ký tự"
-              required
-            />
-          </label>
-
-          <button className="button primary login-button" type="submit" disabled={loading}>
-            {loading ? 'Đang xử lý...' : 'Tạo tài khoản'} <ArrowUpRight size={17} />
+          <div className="login-note" style={{ justifyContent: 'flex-start', marginTop: '16px' }}>
+            <span /> Mặc định Admin: admin@smartstock.vn / Admin@123
+          </div>
+          <button
+            type="button"
+            className="button primary login-button"
+            style={{ marginTop: '24px' }}
+            onClick={onBack}
+          >
+            Quay lại trang Đăng nhập
           </button>
-        </form>
+        </section>
       </div>
     </main>
   )
@@ -417,9 +511,13 @@ export function CleanStorefront({ onLogout, currentUser }) {
             <ShoppingCart size={19} />
             <i>{cart.reduce((s, i) => s + (i.cartQty || 1), 0)}</i>
           </button>
-          <button className="store-account" onClick={onLogout} title="Đăng xuất / Quay lại đăng nhập">
+          <button className="store-account" onClick={onLogout} title="Tài khoản cá nhân">
             <span>{currentUser?.fullName?.[0] || 'K'}</span>
             <ChevronDown size={14} />
+          </button>
+          <button className="store-logout-btn" onClick={onLogout} title="Đăng xuất khỏi tài khoản">
+            <LogOut size={15} />
+            <span>Đăng xuất</span>
           </button>
         </div>
       </header>
@@ -863,8 +961,8 @@ export function CleanAdmin({ role, onLogout, currentUser }) {
               <strong>{currentUser?.fullName || 'Quản trị viên'}</strong>
               <span>{staff ? 'Nhân viên' : role === 'warehouse' ? 'Thủ kho' : 'Quản trị viên'}</span>
             </div>
-            <button className="icon-button" onClick={onLogout} title="Đăng xuất">
-              ↪
+            <button className="sidebar-logout-btn" onClick={onLogout} title="Đăng xuất khỏi hệ thống">
+              <LogOut size={16} />
             </button>
           </div>
         </div>
@@ -920,6 +1018,11 @@ export function CleanAdmin({ role, onLogout, currentUser }) {
                 <span>{staff ? 'Staff' : role === 'warehouse' ? 'Kho' : 'Admin'}</span>
               </div>
             </div>
+
+            <button className="admin-logout-btn" onClick={onLogout} title="Đăng xuất khỏi hệ thống">
+              <LogOut size={15} />
+              <span>Đăng xuất</span>
+            </button>
           </div>
         </header>
 
