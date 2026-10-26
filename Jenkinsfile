@@ -71,7 +71,12 @@ pipeline {
         // ---------------------------------------------
         stage('Deploy to Production') {
             when {
-                expression { return env.SERVER_HOST != 'YOUR_SERVER_IP' && env.SERVER_HOST != '' }
+                expression { 
+                    return env.SERVER_HOST != null && 
+                           env.SERVER_HOST != '' && 
+                           env.SERVER_HOST != 'YOUR_EC2_PUBLIC_IP' && 
+                           env.SERVER_HOST != 'YOUR_SERVER_IP' 
+                }
             }
             steps {
                 withCredentials([

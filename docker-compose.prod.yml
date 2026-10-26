@@ -29,7 +29,7 @@ services:
   # Backend (.NET 10 API)
   # ──────────────────────────────────────────────
   smartstock-backend:
-    image: ${DOCKER_USER}/smartstock-backend:latest
+    image: ${DOCKER_USER:-cuong03062005}/smartstock-backend:latest
     container_name: smartstock-backend
     restart: always
     ports:
@@ -58,7 +58,7 @@ services:
   # Frontend (React + Nginx)
   # ──────────────────────────────────────────────
   smartstock-frontend:
-    image: ${DOCKER_USER}/smartstock-frontend:latest
+    image: ${DOCKER_USER:-cuong03062005}/smartstock-frontend:latest
     container_name: smartstock-frontend
     restart: always
     ports:

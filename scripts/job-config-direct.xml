@@ -11,26 +11,26 @@
     environment {
         IMAGE_BACKEND     = &quot;smartstock-backend&quot;
         IMAGE_FRONTEND    = &quot;smartstock-frontend&quot;
-        // Äiá»n IP hoáº·c Domain cá»§a mÃ¡y chá»§ deploy (náº¿u deploy lÃªn VPS)
-        SERVER_HOST       = &quot;YOUR_SERVER_IP&quot;
-        SERVER_USER       = &quot;root&quot;
-        DEPLOY_DIR        = &quot;~/smartstock&quot;
+        // Äiá»n Public IPv4 cá»§a mÃ¡y áº£o EC2 (láº¥y tá»« AWS Console)
+        SERVER_HOST       = &quot;YOUR_EC2_PUBLIC_IP&quot;
+        SERVER_USER       = &quot;ubuntu&quot;           // AWS Ubuntu EC2 default user
+        DEPLOY_DIR        = &quot;/home/ubuntu/smartstock&quot;
     }
 
     stages {
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ---------------------------------------------
         // 1. Checkout source code tá»« GitHub
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ---------------------------------------------
         stage(&apos;Checkout&apos;) {
             steps {
                 git branch: &apos;main&apos;, url: &apos;https://github.com/CuongProLayer/Devops.git&apos;
             }
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ---------------------------------------------
         // 2. Build &amp; Push Backend image (.NET 10)
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ---------------------------------------------
         stage(&apos;Build &amp; Push Backend&apos;) {
             steps {
                 withCredentials([usernamePassword(
@@ -52,9 +52,9 @@
             }
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ---------------------------------------------
         // 3. Build &amp; Push Frontend image (React + Nginx)
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ---------------------------------------------
         stage(&apos;Build &amp; Push Frontend&apos;) {
             steps {
                 withCredentials([usernamePassword(
@@ -73,12 +73,17 @@
             }
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ---------------------------------------------
         // 4. Deploy lÃªn Production server qua SSH (TÃ¹y chá»n)
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ---------------------------------------------
         stage(&apos;Deploy to Production&apos;) {
             when {
-                expression { return env.SERVER_HOST != &apos;YOUR_SERVER_IP&apos; &amp;&amp; env.SERVER_HOST != &apos;&apos; }
+                expression { 
+                    return env.SERVER_HOST != null &amp;&amp; 
+                           env.SERVER_HOST != &apos;&apos; &amp;&amp; 
+                           env.SERVER_HOST != &apos;YOUR_EC2_PUBLIC_IP&apos; &amp;&amp; 
+                           env.SERVER_HOST != &apos;YOUR_SERVER_IP&apos; 
+                }
             }
             steps {
                 withCredentials([

@@ -23,7 +23,7 @@ Write-Host "`n[2/4] Khoi dong container Jenkins qua Docker Compose..." -Foregrou
 docker compose -f docker-compose.jenkins.yml up -d
 
 # 3. Cai dat Docker CLI ben trong container Jenkins (de Jenkins co the build backend & frontend)
-Write-Host "`n[3/4] Kiem tra & cai dat Docker CLI ben trong Jenkins..." -ForegroundColor Yellow
+Write-Host "`n[3/4] Kiem tra & cai dat Docker CLI va SSH Agent ben trong Jenkins..." -ForegroundColor Yellow
 Start-Sleep -Seconds 5
 try {
     $dockerInJenkins = docker exec jenkins-local docker --version 2>&1
@@ -33,6 +33,18 @@ try {
     docker exec -u 0 jenkins-local apt-get update -y
     docker exec -u 0 jenkins-local apt-get install -y docker.io
     Write-Host " -> Cai dat Docker CLI thanh cong!" -ForegroundColor Green
+}
+
+# Kiem tra plugin ssh-agent
+$hasSshAgent = docker exec jenkins-local ls /var/jenkins_home/plugins 2>$null | Select-String "ssh-agent"
+if (-not $hasSshAgent) {
+    Write-Host " -> Dang cai dat plugin ssh-agent vao Jenkins..." -ForegroundColor Gray
+    docker exec -u 0 -e JAVA_OPTS="-Djava.net.preferIPv4Stack=true" jenkins-local jenkins-plugin-cli --plugins ssh-agent
+    docker exec -u 0 jenkins-local cp -r /usr/share/jenkins/ref/plugins/ssh-agent.jpi /var/jenkins_home/plugins/ 2>$null
+    docker exec -u 0 jenkins-local chown jenkins:jenkins /var/jenkins_home/plugins/ssh-agent.jpi 2>$null
+    docker restart jenkins-local
+    Start-Sleep -Seconds 10
+    Write-Host " -> Cai dat plugin ssh-agent thanh cong!" -ForegroundColor Green
 }
 
 # 4. Lay mat khau admin ban dau
