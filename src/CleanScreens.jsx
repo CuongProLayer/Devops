@@ -31,6 +31,10 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Mail,
+  Lock,
+  Cpu,
+  ShoppingBag,
 } from 'lucide-react'
 import { api, formatVND, formatDate } from './api'
 
@@ -128,12 +132,33 @@ export function CleanLogin({ onLogin }) {
         </div>
         <div className="login-art-copy">
           <div className="eyebrow">INVENTORY OS &bull; LIVE CONNECTED</div>
-          <h1>{screen === 'register' ? 'Gia nhập nền tảng' : text.heroTitle}<br /><em>{screen === 'register' ? 'quản trị hiện đại.' : text.heroAccent}</em></h1>
+          <h1 className="login-hero-headline">
+            <span className="login-art-title-main">
+              {screen === 'register' ? 'Gia nhập nền tảng' : 'Vận hành cửa hàng'}
+            </span>
+            <br />
+            <em className="login-art-title-accent">
+              {screen === 'register' ? 'quản trị hiện đại.' : 'nhẹ nhàng hơn.'}
+            </em>
+          </h1>
           <p>{screen === 'register' ? 'Tạo tài khoản quản trị hoặc nhân viên để phân quyền làm việc theo nhiệm vụ được chỉ định.' : text.heroCopy}</p>
-          <div className="clean-login-stat">
-            <TrendingUp size={16} />
-            <strong>REST API v1 &bull; JWT Auth</strong>
-            <span>Đã kết nối Database SQL Server</span>
+
+          <div className="login-stat-grid">
+            <div className="clean-login-stat-card">
+              <div className="stat-card-header">
+                <span className="pulsing-dot" />
+                <strong>REST API v1 &bull; JWT Auth</strong>
+              </div>
+              <span className="stat-card-sub">Đã kết nối Database SQL Server</span>
+            </div>
+
+            <div className="clean-login-stat-card devops-stat-card">
+              <div className="stat-card-header">
+                <Cpu size={14} className="stat-icon-devops" />
+                <strong>Docker &bull; CI/CD Pipeline</strong>
+              </div>
+              <span className="stat-card-sub">Ping API thực tế: ~24ms &bull; v1.2.0</span>
+            </div>
           </div>
         </div>
         <div className="login-art-footer">
@@ -178,20 +203,24 @@ export function CleanLogin({ onLogin }) {
 
           {screen === 'login' ? (
             <form onSubmit={handleLoginSubmit}>
-              <label>
-                Email hoặc tên đăng nhập
-                <input
-                  type="text"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@smartstock.vn hoặc admin"
-                  required
-                />
+              <label className="login-field-group email-field">
+                <span>Email hoặc tên đăng nhập</span>
+                <div className="login-input-with-icon">
+                  <Mail size={16} className="login-input-icon" />
+                  <input
+                    type="text"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@smartstock.vn hoặc admin"
+                    required
+                  />
+                </div>
               </label>
 
-              <label>
-                Mật khẩu
-                <div className="password-input-wrap">
+              <label className="login-field-group password-field">
+                <span>Mật khẩu</span>
+                <div className="login-input-with-icon password-input-wrap">
+                  <Lock size={16} className="login-input-icon" />
                   <input
                     type={showLoginPassword ? 'text' : 'password'}
                     value={password}
@@ -241,17 +270,37 @@ export function CleanLogin({ onLogin }) {
 
               <div className="demo-role-row">
                 <span>Tài khoản mẫu:</span>
-                <button type="button" onClick={() => fillAndLogin('admin@smartstock.vn', 'Admin@123', 'admin')} title="Toàn quyền admin">
+                <button
+                  type="button"
+                  className={['admin@smartstock.vn', 'admin'].includes(email.trim().toLowerCase()) ? 'active' : ''}
+                  onClick={() => fillAndLogin('admin@smartstock.vn', 'Admin@123', 'admin')}
+                  title="Toàn quyền admin"
+                >
                   👑 Admin
                 </button>
-                <button type="button" onClick={() => fillAndLogin('warehouse@smartstock.vn', 'Warehouse@123', 'warehouse')} title="Quản lý kho & nhập hàng">
+                <button
+                  type="button"
+                  className={['warehouse@smartstock.vn', 'warehouse'].includes(email.trim().toLowerCase()) ? 'active' : ''}
+                  onClick={() => fillAndLogin('warehouse@smartstock.vn', 'Warehouse@123', 'warehouse')}
+                  title="Quản lý kho & nhập hàng"
+                >
                   📦 Kho
                 </button>
-                <button type="button" onClick={() => fillAndLogin('staff@smartstock.vn', 'Staff@123', 'staff')} title="Đơn hàng & khách hàng">
+                <button
+                  type="button"
+                  className={['staff@smartstock.vn', 'staff'].includes(email.trim().toLowerCase()) ? 'active' : ''}
+                  onClick={() => fillAndLogin('staff@smartstock.vn', 'Staff@123', 'staff')}
+                  title="Đơn hàng & khách hàng"
+                >
                   🛒 Staff
                 </button>
-                <button type="button" onClick={() => fillAndLogin('', '', 'customer')} title="Giao diện mua sắm">
-                  Khách hàng
+                <button
+                  type="button"
+                  className={['customer@smartstock.vn', 'customer'].includes(email.trim().toLowerCase()) ? 'active' : ''}
+                  onClick={() => fillAndLogin('', '', 'customer')}
+                  title="Giao diện mua sắm"
+                >
+                  🛍️ Khách hàng
                 </button>
               </div>
             </form>
