@@ -1,4 +1,4 @@
-﻿IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
 BEGIN
     CREATE TABLE [__EFMigrationsHistory] (
         [MigrationId] nvarchar(150) NOT NULL,
@@ -311,9 +311,9 @@ BEGIN
     IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAt', N'Email', N'FullName', N'IsActive', N'PasswordHash', N'Phone', N'Role', N'UpdatedAt', N'Username') AND [object_id] = OBJECT_ID(N'[Users]'))
         SET IDENTITY_INSERT [Users] ON;
     EXEC(N'INSERT INTO [Users] ([Id], [CreatedAt], [Email], [FullName], [IsActive], [PasswordHash], [Phone], [Role], [UpdatedAt], [Username])
-    VALUES (1, ''2026-01-01T00:00:00.0000000'', N''admin@smartstock.vn'', N''Quản trị viên'', CAST(1 AS bit), N''$2a$11$AZ3yy4QMKChWNuqVMla1bObFZu1uivXKwb3DH2o3YNYfMhoezZKYa'', N''0900000001'', N''admin'', ''2026-01-01T00:00:00.0000000'', N''admin''),
-    (2, ''2026-01-01T00:00:00.0000000'', N''warehouse@smartstock.vn'', N''Trần Minh Kho'', CAST(1 AS bit), N''$2a$11$dgdh5FT7L.vuJg4aF.kN4e1N3VX1AqVb80LwQQ2AnMg4XrWt9Fv8.'', N''0900000002'', N''warehouse'', ''2026-01-01T00:00:00.0000000'', N''warehouse''),
-    (3, ''2026-01-01T00:00:00.0000000'', N''staff@smartstock.vn'', N''Nguyễn Hà Sales'', CAST(1 AS bit), N''$2a$11$NgkLu8aLGhR85Hx8dtzRp.DnTIy6atNsyuPygZCOjjKRk92QS8/hy'', N''0900000003'', N''staff'', ''2026-01-01T00:00:00.0000000'', N''staff'')');
+    VALUES (1, ''2026-01-01T00:00:00.0000000'', N''admin@smartstock.vn'', N''Quản trị viên'', CAST(1 AS bit), N''$2a$11$5Q/V4SrRu4W4HkRCcVjzqOSlM8eFDTPn6tqoWZGfpWpvoQrRfuyVi'', N''0900000001'', N''admin'', ''2026-01-01T00:00:00.0000000'', N''admin''),
+    (2, ''2026-01-01T00:00:00.0000000'', N''warehouse@smartstock.vn'', N''Trần Minh Kho'', CAST(1 AS bit), N''$2a$11$Izv7nAljH4fYkaWcjmizRuH4a9RypXNvCEnbRe5Rvk007PV.7Bg9G'', N''0900000002'', N''warehouse'', ''2026-01-01T00:00:00.0000000'', N''warehouse''),
+    (3, ''2026-01-01T00:00:00.0000000'', N''staff@smartstock.vn'', N''Nguyễn Hà Sales'', CAST(1 AS bit), N''$2a$11$KDm2Kp33YZyb17csKok2we0v/MXffgAa.hXEATeLTWNnX8Bgot5M6'', N''0900000003'', N''staff'', ''2026-01-01T00:00:00.0000000'', N''staff'')');
     IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAt', N'Email', N'FullName', N'IsActive', N'PasswordHash', N'Phone', N'Role', N'UpdatedAt', N'Username') AND [object_id] = OBJECT_ID(N'[Users]'))
         SET IDENTITY_INSERT [Users] OFF;
 END;

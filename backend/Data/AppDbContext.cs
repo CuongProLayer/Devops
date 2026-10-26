@@ -109,13 +109,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     private static void SeedData(ModelBuilder modelBuilder)
     {
-        // Admin user (password: admin123)
+        // Admin user (password: Admin@123)
         modelBuilder.Entity<User>().HasData(new User
         {
             Id = 1,
             Username = "admin",
             Email = "admin@smartstock.vn",
-            PasswordHash = "$2a$11$AZ3yy4QMKChWNuqVMla1bObFZu1uivXKwb3DH2o3YNYfMhoezZKYa",
+            PasswordHash = "$2a$11$5Q/V4SrRu4W4HkRCcVjzqOSlM8eFDTPn6tqoWZGfpWpvoQrRfuyVi",
             FullName = "Quản trị viên",
             Phone = "0900000001",
             Role = "admin",
@@ -129,7 +129,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             Id = 2,
             Username = "warehouse",
             Email = "warehouse@smartstock.vn",
-            PasswordHash = "$2a$11$dgdh5FT7L.vuJg4aF.kN4e1N3VX1AqVb80LwQQ2AnMg4XrWt9Fv8.",
+            PasswordHash = "$2a$11$Izv7nAljH4fYkaWcjmizRuH4a9RypXNvCEnbRe5Rvk007PV.7Bg9G",
             FullName = "Trần Minh Kho",
             Phone = "0900000002",
             Role = "warehouse",
@@ -143,7 +143,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             Id = 3,
             Username = "staff",
             Email = "staff@smartstock.vn",
-            PasswordHash = "$2a$11$NgkLu8aLGhR85Hx8dtzRp.DnTIy6atNsyuPygZCOjjKRk92QS8/hy",
+            PasswordHash = "$2a$11$KDm2Kp33YZyb17csKok2we0v/MXffgAa.hXEATeLTWNnX8Bgot5M6",
             FullName = "Nguyễn Hà Sales",
             Phone = "0900000003",
             Role = "staff",
