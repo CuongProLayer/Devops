@@ -53,6 +53,23 @@ public class NotificationsController(AppDbContext db) : ControllerBase
         return Ok(notifications.OrderByDescending(n => n.CreatedAt));
     }
 
+    [HttpPost]
+    [AllowAnonymous]
+    public async Task<IActionResult> Create([FromBody] CreateNotificationRequest request)
+    {
+        var n = new Notification
+        {
+            Title = request.Title ?? "Yêu cầu nhập hàng",
+            Message = request.Message,
+            Type = request.Type ?? "warning",
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Notifications.Add(n);
+        await db.SaveChangesAsync();
+        return Ok(new NotificationDto(n.Id, n.Title, n.Message, n.Type, n.IsRead, n.CreatedAt));
+    }
+
     [HttpPost("{id}/read")]
     public async Task<IActionResult> MarkRead(int id)
     {
@@ -109,6 +126,43 @@ public class UsersController(AppDbContext db) : ControllerBase
         u.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return Ok(new UserDto(u.Id, u.Username, u.Email, u.FullName, u.Phone, u.Role, u.IsActive, u.CreatedAt));
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateUserRequest request)
+    {
+        var email = request.Email.Trim().ToLower();
+        var username = request.Username.Trim();
+        if (await db.Users.AnyAsync(u => u.Email.ToLower() == email || u.Username.ToLower() == username.ToLower()))
+            return BadRequest(new { message = "Email hoặc tên đăng nhập đã tồn tại trong hệ thống" });
+
+        var allowedRoles = new[] { "admin", "warehouse", "staff", "customer" };
+        var role = allowedRoles.Contains(request.Role.Trim().ToLower()) ? request.Role.Trim().ToLower() : "staff";
+
+        var user = new User
+        {
+            Username = username,
+            Email = email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            FullName = request.FullName.Trim(),
+            Phone = request.Phone?.Trim() ?? "",
+            Role = role,
+            IsActive = true
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        return Created($"/api/users/{user.Id}", new UserDto(user.Id, user.Username, user.Email, user.FullName, user.Phone, user.Role, user.IsActive, user.CreatedAt));
+    }
+
+    [HttpPost("{id}/reset-password")]
+    public async Task<IActionResult> ResetPassword(int id, AdminResetPasswordRequest request)
+    {
+        var u = await db.Users.FindAsync(id);
+        if (u == null) return NotFound(new { message = "Không tìm thấy người dùng" });
+        u.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        u.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return Ok(new { message = $"Đã cấp lại mật khẩu mới cho tài khoản {u.Username} ({u.FullName}) thành công!" });
     }
 
     [HttpDelete("{id}")]

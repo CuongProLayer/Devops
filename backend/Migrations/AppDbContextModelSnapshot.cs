@@ -647,6 +647,9 @@ namespace SmartStock.API.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AdminReply")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Comment")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -669,6 +672,9 @@ namespace SmartStock.API.Migrations
 
                     b.Property<int>("Rating")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("RepliedAt")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
@@ -872,7 +878,7 @@ namespace SmartStock.API.Migrations
                             Email = "admin@smartstock.vn",
                             FullName = "Quản trị viên",
                             IsActive = true,
-                            PasswordHash = "$2a$11$AZ3yy4QMKChWNuqVMla1bObFZu1uivXKwb3DH2o3YNYfMhoezZKYa",
+                            PasswordHash = "$2a$11$5Q/V4SrRu4W4HkRCcVjzqOSlM8eFDTPn6tqoWZGfpWpvoQrRfuyVi",
                             Phone = "0900000001",
                             Role = "admin",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
@@ -885,7 +891,7 @@ namespace SmartStock.API.Migrations
                             Email = "warehouse@smartstock.vn",
                             FullName = "Trần Minh Kho",
                             IsActive = true,
-                            PasswordHash = "$2a$11$dgdh5FT7L.vuJg4aF.kN4e1N3VX1AqVb80LwQQ2AnMg4XrWt9Fv8.",
+                            PasswordHash = "$2a$11$Izv7nAljH4fYkaWcjmizRuH4a9RypXNvCEnbRe5Rvk007PV.7Bg9G",
                             Phone = "0900000002",
                             Role = "warehouse",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
@@ -898,7 +904,7 @@ namespace SmartStock.API.Migrations
                             Email = "staff@smartstock.vn",
                             FullName = "Nguyễn Hà Sales",
                             IsActive = true,
-                            PasswordHash = "$2a$11$NgkLu8aLGhR85Hx8dtzRp.DnTIy6atNsyuPygZCOjjKRk92QS8/hy",
+                            PasswordHash = "$2a$11$KDm2Kp33YZyb17csKok2we0v/MXffgAa.hXEATeLTWNnX8Bgot5M6",
                             Phone = "0900000003",
                             Role = "staff",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),

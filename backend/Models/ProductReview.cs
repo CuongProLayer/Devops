@@ -10,6 +10,9 @@ public class ProductReview
     public bool IsApproved { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    public string? AdminReply { get; set; }
+    public DateTime? RepliedAt { get; set; }
+
     public int ProductId { get; set; }
     public Product Product { get; set; } = null!;
 }

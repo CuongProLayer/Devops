@@ -1,0 +1,107 @@
+#!/bin/bash
+# ============================================================
+#  SmartStock – Quick Deploy Script (chạy trên EC2)
+#  Không cần GitHub Actions, deploy trực tiếp
+# ============================================================
+set -euo pipefail
+
+EC2_IP="13.211.127.28"
+DOCKER_USER="cuong03062005"
+
+# Màu sắc
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "  SmartStock – Direct EC2 Deploy"
+echo -e "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# Tạo thư mục deploy
+mkdir -p ~/smartstock
+cd ~/smartstock
+
+# Tạo file docker-compose.yml
+cat > docker-compose.yml << 'EOF'
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: smartstock-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "SmartStock@2024!"
+      MSSQL_MEMORY_LIMIT_MB: "512"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    restart: always
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SmartStock@2024!' -C -Q 'SELECT 1' || exit 1"]
+      interval: 30s
+      retries: 5
+      start_period: 60s
+      timeout: 10s
+
+  smartstock-backend:
+    image: cuong03062005/smartstock-backend:latest
+    container_name: smartstock-backend
+    restart: always
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=SmartStockDB;User Id=sa;Password=SmartStock@2024!;TrustServerCertificate=True;"
+      Jwt__Key: "SmartStockJwtSuperSecretKey2024Production!!"
+      Jwt__Issuer: "SmartStock.API"
+      Jwt__Audience: "SmartStock.Client"
+    volumes:
+      - uploads-data:/app/uploads
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  smartstock-frontend:
+    image: cuong03062005/smartstock-frontend:latest
+    container_name: smartstock-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - smartstock-backend
+    networks:
+      - app-network
+
+volumes:
+  sqlserver-data:
+  uploads-data:
+
+networks:
+  app-network:
+    driver: bridge
+EOF
+
+echo -e "${GREEN}✓ docker-compose.yml đã tạo${NC}"
+
+# Pull images mới nhất
+echo -e "${YELLOW}Đang pull images từ Docker Hub...${NC}"
+docker pull cuong03062005/smartstock-backend:latest
+docker pull cuong03062005/smartstock-frontend:latest
+docker pull mcr.microsoft.com/mssql/server:2022-latest
+
+# Khởi động tất cả containers
+echo -e "${YELLOW}Đang khởi động services...${NC}"
+docker compose up -d
+
+echo ""
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "  ✅ Deploy hoàn tất!"
+echo -e "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+echo ""
+echo -e "${CYAN}🌐 Frontend:  http://${EC2_IP}:3000${NC}"
+echo -e "${CYAN}⚙️  Backend:   http://${EC2_IP}:5000/swagger${NC}"
+echo -e "${CYAN}🔍 Health:    http://${EC2_IP}:5000/health${NC}"

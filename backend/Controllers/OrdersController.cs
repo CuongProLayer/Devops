@@ -12,7 +12,7 @@ namespace SmartStock.API.Controllers;
 public class OrdersController(IOrderService orderService) : ControllerBase
 {
     [HttpGet]
-    [Authorize(Roles = "admin,warehouse,staff")]
+    [Authorize(Roles = "admin,warehouse,staff,customer")]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? status,
         [FromQuery] int? customerId,
@@ -25,7 +25,7 @@ public class OrdersController(IOrderService orderService) : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [Authorize(Roles = "admin,warehouse,staff")]
+    [Authorize(Roles = "admin,warehouse,staff,customer")]
     public async Task<IActionResult> GetById(int id)
     {
         var result = await orderService.GetByIdAsync(id);
@@ -33,7 +33,7 @@ public class OrdersController(IOrderService orderService) : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "admin,staff")]
+    [Authorize(Roles = "admin,staff,customer")]
     public async Task<IActionResult> Create(
         [FromBody] CreateOrderRequest request,
         [FromHeader(Name = "X-Idempotency-Key")] string? headerIdempotencyKey)
@@ -61,7 +61,7 @@ public class OrdersController(IOrderService orderService) : ControllerBase
     }
 
     [HttpPut("{id}/status")]
-    [Authorize(Roles = "admin,staff")]
+    [Authorize(Roles = "admin,staff,customer")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] string status)
     {
         var employeeId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -73,7 +73,7 @@ public class OrdersController(IOrderService orderService) : ControllerBase
     /// Hủy đơn hàng và hoàn trả tồn kho (POST)
     /// </summary>
     [HttpPost("{id}/cancel")]
-    [Authorize(Roles = "admin,warehouse,staff")]
+    [Authorize(Roles = "admin,warehouse,staff,customer")]
     public async Task<IActionResult> CancelPost(int id)
     {
         var employeeId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -86,7 +86,7 @@ public class OrdersController(IOrderService orderService) : ControllerBase
     /// Hủy đơn hàng và hoàn trả tồn kho (DELETE)
     /// </summary>
     [HttpDelete("{id}")]
-    [Authorize(Roles = "admin,warehouse,staff")]
+    [Authorize(Roles = "admin,warehouse,staff,customer")]
     public async Task<IActionResult> CancelDelete(int id)
     {
         var employeeId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -99,7 +99,7 @@ public class OrdersController(IOrderService orderService) : ControllerBase
     /// Hoàn trả đơn hàng (toàn bộ hoặc một phần) và hoàn kho
     /// </summary>
     [HttpPost("{id}/return")]
-    [Authorize(Roles = "admin,warehouse,staff")]
+    [Authorize(Roles = "admin,warehouse,staff,customer")]
     public async Task<IActionResult> ReturnOrder(int id, [FromBody] ReturnOrderRequest? request)
     {
         var employeeId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);

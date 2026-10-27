@@ -165,6 +165,21 @@ app.MapGet("/health", async (AppDbContext db, CancellationToken cancellationToke
         return Results.Json(new { status = "Unhealthy", database = "Unreachable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 });
+
+app.MapGet("/api/health", async (AppDbContext db, CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var databaseConnected = await db.Database.CanConnectAsync(cancellationToken);
+        return databaseConnected
+            ? Results.Ok(new { status = "Healthy", database = "Connected" })
+            : Results.Json(new { status = "Unhealthy", database = "Unreachable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+    catch
+    {
+        return Results.Json(new { status = "Unhealthy", database = "Unreachable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+});
 app.MapControllers();
 
 app.Run();

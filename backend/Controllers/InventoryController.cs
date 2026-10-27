@@ -11,7 +11,7 @@ namespace SmartStock.API.Controllers;
 
 [ApiController]
 [Route("api/inventory")]
-[Authorize]
+[Authorize(Roles = "admin,warehouse,staff")]
 public class InventoryController(AppDbContext db, IProductService productService, IReportService reportService) : ControllerBase
 {
     [HttpGet]

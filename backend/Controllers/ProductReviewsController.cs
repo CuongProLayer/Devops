@@ -9,10 +9,10 @@ namespace SmartStock.API.Controllers;
 
 [ApiController]
 [Route("api/reviews")]
-[Authorize(Roles = "admin,warehouse")]
 public class ProductReviewsController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAll()
     {
         var reviews = await db.ProductReviews
@@ -20,12 +20,14 @@ public class ProductReviewsController(AppDbContext db) : ControllerBase
             .OrderByDescending(r => r.CreatedAt)
             .Select(r => new ProductReviewDto(
                 r.Id, r.CustomerName, r.CustomerEmail, r.Rating, r.Comment, r.IsApproved,
-                r.CreatedAt, r.ProductId, r.Product.Name, r.Product.ProductCode))
+                r.CreatedAt, r.ProductId, r.Product.Name, r.Product.ProductCode,
+                r.AdminReply, r.RepliedAt))
             .ToListAsync();
         return Ok(reviews);
     }
 
     [HttpPost]
+    [AllowAnonymous]
     public async Task<IActionResult> Create(CreateProductReviewRequest request)
     {
         var productExists = await db.Products.AnyAsync(p => p.Id == request.ProductId && !p.IsDeleted);
@@ -38,7 +40,7 @@ public class ProductReviewsController(AppDbContext db) : ControllerBase
             ProductId = request.ProductId,
             Rating = request.Rating,
             Comment = request.Comment.Trim(),
-            IsApproved = false,
+            IsApproved = true, // Hiển thị ngay lập tức khi khách hàng gửi (chuẩn TMĐT)
             CreatedAt = DateTime.UtcNow,
         };
         db.ProductReviews.Add(review);
@@ -46,7 +48,20 @@ public class ProductReviewsController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetAll), new { id = review.Id }, review.Id);
     }
 
+    [HttpPut("{id:int}/reply")]
+    [Authorize(Roles = "admin,warehouse")]
+    public async Task<IActionResult> Reply(int id, ReplyProductReviewRequest request)
+    {
+        var review = await db.ProductReviews.FindAsync(id);
+        if (review == null) return NotFound(new { message = "Không tìm thấy đánh giá" });
+        review.AdminReply = string.IsNullOrWhiteSpace(request.AdminReply) ? null : request.AdminReply.Trim();
+        review.RepliedAt = string.IsNullOrWhiteSpace(request.AdminReply) ? null : DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return Ok(new { message = "Đã cập nhật phản hồi của Shop", adminReply = review.AdminReply, repliedAt = review.RepliedAt });
+    }
+
     [HttpPut("{id:int}/moderation")]
+    [Authorize(Roles = "admin,warehouse")]
     public async Task<IActionResult> Moderate(int id, ModerateProductReviewRequest request)
     {
         var review = await db.ProductReviews.FindAsync(id);
@@ -57,6 +72,7 @@ public class ProductReviewsController(AppDbContext db) : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "admin,warehouse")]
     public async Task<IActionResult> Delete(int id)
     {
         var review = await db.ProductReviews.FindAsync(id);

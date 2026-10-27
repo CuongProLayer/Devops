@@ -13,6 +13,7 @@ namespace SmartStock.API.Controllers;
 public class PromotionsController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAll()
     {
         var promotions = await db.Promotions

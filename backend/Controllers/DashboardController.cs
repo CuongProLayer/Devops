@@ -7,7 +7,7 @@ namespace SmartStock.API.Controllers;
 
 [ApiController]
 [Route("api/dashboard")]
-[Authorize]
+[Authorize(Roles = "admin,warehouse,staff")]
 public class DashboardController(IDashboardService dashboardService) : ControllerBase
 {
     [HttpGet]

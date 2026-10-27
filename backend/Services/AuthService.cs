@@ -38,10 +38,9 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
         if (await db.Users.AnyAsync(u => u.Email.ToLower() == email || u.Username.ToLower() == username.ToLower()))
             return null;
 
-        var allowedRoles = new[] { "admin", "warehouse", "staff" };
-        var role = !string.IsNullOrWhiteSpace(request.Role) && allowedRoles.Contains(request.Role.Trim().ToLower())
-            ? request.Role.Trim().ToLower()
-            : "staff";
+        // BẢO MẬT PHÂN QUYỀN (RBAC): Người dùng tự đăng ký công khai BẮT BUỘC có vai trò 'customer'.
+        // Toàn bộ tài khoản nội bộ (Admin, Warehouse, Staff) chỉ được Admin tạo trực tiếp qua API quản lý.
+        var role = "customer";
 
         var user = new User
         {

@@ -34,6 +34,17 @@ public record UpdateUserRequest(
     [Required(ErrorMessage = "Vai trò không được để trống")][StringLength(20)] string Role,
     bool IsActive);
 
+public record CreateUserRequest(
+    [Required(ErrorMessage = "Tên đăng nhập không được để trống")][StringLength(50)] string Username,
+    [Required(ErrorMessage = "Email không được để trống")][EmailAddress(ErrorMessage = "Email không đúng định dạng")] string Email,
+    [Required(ErrorMessage = "Mật khẩu không được để trống")][StringLength(100, MinimumLength = 6, ErrorMessage = "Mật khẩu từ 6-100 ký tự")] string Password,
+    [Required(ErrorMessage = "Họ và tên không được để trống")][StringLength(100)] string FullName,
+    [Phone(ErrorMessage = "Số điện thoại không đúng định dạng")][StringLength(20)] string? Phone,
+    [Required(ErrorMessage = "Vai trò không được để trống")][StringLength(20)] string Role);
+
+public record AdminResetPasswordRequest(
+    [Required(ErrorMessage = "Mật khẩu mới không được để trống")][StringLength(100, MinimumLength = 6, ErrorMessage = "Mật khẩu từ 6-100 ký tự")] string NewPassword);
+
 // Category
 public record CategoryDto(int Id, string Name, string? Description, string? Icon, string? ImageUrl,
     string? ImageContentType, bool IsActive, int ProductCount);
@@ -104,7 +115,8 @@ public record SavePromotionRequest(
 
 // Product reviews
 public record ProductReviewDto(int Id, string CustomerName, string? CustomerEmail, int Rating,
-    string Comment, bool IsApproved, DateTime CreatedAt, int ProductId, string ProductName, string ProductCode);
+    string Comment, bool IsApproved, DateTime CreatedAt, int ProductId, string ProductName, string ProductCode,
+    string? AdminReply = null, DateTime? RepliedAt = null);
 
 public record CreateProductReviewRequest(
     [Required(ErrorMessage = "Tên khách hàng không được để trống")][StringLength(100)] string CustomerName,
@@ -114,6 +126,8 @@ public record CreateProductReviewRequest(
     [Required(ErrorMessage = "Nội dung đánh giá không được để trống")][StringLength(1000)] string Comment);
 
 public record ModerateProductReviewRequest(bool IsApproved);
+
+public record ReplyProductReviewRequest([StringLength(1000)] string? AdminReply);
 
 public record CreateProductRequest(
     [Required(ErrorMessage = "Tên sản phẩm không được để trống")][StringLength(200, ErrorMessage = "Tên sản phẩm không vượt quá 200 ký tự")] string Name,
@@ -235,6 +249,7 @@ public record TopProductDto(int ProductId, string ProductName, int TotalSold, de
 
 // Notification
 public record NotificationDto(int Id, string Title, string Message, string Type, bool IsRead, DateTime CreatedAt);
+public record CreateNotificationRequest(string Title, string Message, string? Type);
 
 // Pagination
 public record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize, int TotalPages);

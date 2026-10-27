@@ -763,3 +763,75 @@ END;
 COMMIT;
 GO
 
+-- ====================================================
+-- SEED DATA: ORDERS, IMPORTS, PROMOTIONS, REVIEWS
+-- ====================================================
+BEGIN TRANSACTION;
+
+-- 1. Seed Promotions
+IF NOT EXISTS (SELECT 1 FROM [Promotions] WHERE [Code] = 'PROMO2026')
+BEGIN
+    INSERT INTO [Promotions] ([Code], [DiscountPercent], [DiscountAmount], [Description], [StartDate], [EndDate], [IsActive], [CreatedAt])
+    VALUES 
+    (N'PROMO2026', 10, NULL, N'Giảm giá khai trương toàn bộ đơn hàng', '2026-01-01', '2026-12-31', 1, GETUTCDATE()),
+    (N'APPLECARE', NULL, 500000, N'Ưu đãi mua thiết bị Apple chính hãng', '2026-02-01', '2026-11-30', 1, GETUTCDATE()),
+    (N'FREESHIP', 100, NULL, N'Miễn phí vận chuyển cho đơn từ 2 triệu', '2026-03-01', '2026-12-31', 1, GETUTCDATE());
+END;
+
+-- 2. Seed Product Reviews
+IF NOT EXISTS (SELECT 1 FROM [ProductReviews] WHERE [ProductId] = 1)
+BEGIN
+    INSERT INTO [ProductReviews] ([ProductId], [CustomerName], [CustomerEmail], [Rating], [Comment], [IsApproved], [CreatedAt])
+    VALUES 
+    (1, N'Nguyễn Minh Anh', N'anh@gmail.com', 5, N'Máy nguyên seal VN/A cực đẹp, camera sắc nét, pin rất trâu!', 1, '2026-10-16T10:30:00'),
+    (3, N'Trần Quốc Bảo', N'bao@gmail.com', 5, N'Chống ồn chủ động đỉnh cao, nghe nhạc bass sâu, đeo cực kỳ êm tai.', 1, '2026-10-21T14:15:00'),
+    (2, N'Hoàng Gia Huy', N'huy.hoang@gmail.com', 5, N'Màn hình to đẹp, chip M3 xử lý đồ họa mượt mà, dùng cả ngày không cần sạc.', 1, '2026-10-23T09:00:00'),
+    (5, N'Phan Thị Thu Hà', N'thuha.phan@yahoo.com', 4, N'Sạc nhanh chuẩn MFi, dây bện dù chắc chắn, dùng rất an tâm.', 1, '2026-10-25T16:45:00');
+END;
+
+-- 3. Seed Import Receipts & Details
+IF NOT EXISTS (SELECT 1 FROM [ImportReceipts] WHERE [ReceiptCode] = 'PO-2026-001')
+BEGIN
+    SET IDENTITY_INSERT [ImportReceipts] ON;
+    INSERT INTO [ImportReceipts] ([Id], [ReceiptCode], [TotalAmount], [Status], [Note], [CreatedAt], [UpdatedAt], [SupplierId], [EmployeeId])
+    VALUES 
+    (1, N'PO-2026-001', 385000000.0, N'completed', N'Nhập lô iPhone 15 Pro Max & MacBook Air M3', '2026-10-02T08:30:00', '2026-10-02T08:30:00', 1, 2),
+    (2, N'PO-2026-002', 168000000.0, N'completed', N'Nhập flagship Samsung Galaxy S24 Ultra', '2026-10-05T10:00:00', '2026-10-05T10:00:00', 2, 2),
+    (3, N'PO-2026-003', 82500000.0, N'completed', N'Nhập phụ kiện tai nghe Sony cao cấp', '2026-10-10T14:20:00', '2026-10-10T14:20:00', 3, 2);
+    SET IDENTITY_INSERT [ImportReceipts] OFF;
+
+    INSERT INTO [ImportDetails] ([ImportReceiptId], [ProductId], [Quantity], [ImportPrice], [Total])
+    VALUES 
+    (1, 1, 10, 25000000.0, 250000000.0),
+    (1, 2, 5, 27000000.0, 135000000.0),
+    (2, 4, 8, 21000000.0, 168000000.0),
+    (3, 3, 15, 5500000.0, 82500000.0);
+END;
+
+-- 4. Seed Orders matching Nguyễn Minh Anh (62.480.000₫) & Trần Quốc Bảo (7.490.000₫) = 69.970.000₫
+IF NOT EXISTS (SELECT 1 FROM [Orders] WHERE [OrderCode] = 'ORD-2026-001')
+BEGIN
+    SET IDENTITY_INSERT [Orders] ON;
+    INSERT INTO [Orders] ([Id], [OrderCode], [TotalAmount], [Discount], [FinalAmount], [PaidAmount], [PaymentMethod], [Status], [Note], [IsDeleted], [CreatedAt], [UpdatedAt], [CustomerId], [EmployeeId])
+    VALUES 
+    (1, N'ORD-2026-001', 29990000.0, 0, 29990000.0, 29990000.0, N'bank_transfer', N'completed', N'Đơn hàng iPhone 15 Pro Max', 0, '2026-10-15T09:30:00', '2026-10-15T09:30:00', 1, 1),
+    (2, N'ORD-2026-002', 32490000.0, 0, 32490000.0, 32490000.0, N'bank_transfer', N'completed', N'Đơn hàng MacBook Air M3', 0, '2026-10-18T14:15:00', '2026-10-18T14:15:00', 1, 3),
+    (3, N'ORD-2026-003', 7490000.0, 0, 7490000.0, 7490000.0, N'cash', N'completed', N'Đơn hàng tai nghe Sony WH-1000XM5', 0, '2026-10-20T11:00:00', '2026-10-20T11:00:00', 2, 3),
+    (4, N'ORD-2026-004', 500000.0, 0, 500000.0, 0, N'cod', N'confirmed', N'Cáp sạc Anker giao nhanh', 0, '2026-10-24T16:20:00', '2026-10-24T16:20:00', 1, 1),
+    (5, N'ORD-2026-005', 250000.0, 0, 250000.0, 0, N'bank_transfer', N'pending', N'Đặt cáp sạc USB-C', 0, '2026-10-25T10:45:00', '2026-10-25T10:45:00', 2, 3),
+    (6, N'ORD-2026-006', 25000000.0, 0, 25000000.0, 0, N'cash', N'partially_returned', N'Khách đổi mẫu', 0, '2026-10-26T13:00:00', '2026-10-26T13:00:00', NULL, 3);
+    SET IDENTITY_INSERT [Orders] OFF;
+
+    INSERT INTO [OrderDetails] ([OrderId], [ProductId], [Quantity], [Price], [Total], [ReturnedQuantity])
+    VALUES 
+    (1, 1, 1, 29990000.0, 29990000.0, 0),
+    (2, 2, 1, 32490000.0, 32490000.0, 0),
+    (3, 3, 1, 7490000.0, 7490000.0, 0),
+    (4, 5, 2, 250000.0, 500000.0, 0),
+    (5, 5, 1, 250000.0, 250000.0, 0),
+    (6, 1, 1, 25000000.0, 25000000.0, 1);
+END;
+
+COMMIT;
+GO
+
