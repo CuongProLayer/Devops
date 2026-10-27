@@ -47,12 +47,6 @@ services:
     restart: always
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SmartStock@2024!' -C -Q 'SELECT 1' || exit 1"]
-      interval: 30s
-      retries: 5
-      start_period: 60s
-      timeout: 10s
 
   smartstock-backend:
     image: cuong03062005/smartstock-backend:latest
@@ -69,8 +63,7 @@ services:
     volumes:
       - uploads-data:/app/uploads
     depends_on:
-      sqlserver:
-        condition: service_healthy
+      - sqlserver
     networks:
       - app-network
 
