@@ -30,6 +30,32 @@ sudo sysctl -w vm.max_map_count=262144 >/dev/null || true
 mkdir -p ~/smartstock
 cd ~/smartstock
 
+# Bypass kiểm tra 2000MB RAM của SQL Server trên EC2 t2/t3.micro (1GB RAM)
+if [ ! -f ~/smartstock/fake_meminfo.so ]; then
+    echo -e "${YELLOW}Biên dịch bộ thư viện fake_meminfo.so để bypass giới hạn 2GB RAM của SQL Server...${NC}"
+    sudo apt-get update -qq && sudo apt-get install -y -qq gcc
+    cat << 'EOF_C' > ~/smartstock/fake-meminfo.c
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <sys/sysinfo.h>
+
+typedef int (*real_sysinfo)(struct sysinfo *info);
+
+int sysinfo(struct sysinfo *info) {
+    void *pt = dlsym(RTLD_NEXT, "sysinfo");
+    if (!pt) return -1;
+    int ret = ((real_sysinfo)pt)(info);
+    if (info->totalram < 1000L * 1000L * 1000L * 4L) {
+        info->totalram = 1000L * 1000L * 1000L * 4L;
+    }
+    return ret;
+}
+EOF_C
+    gcc -shared -fPIC -o ~/smartstock/fake_meminfo.so ~/smartstock/fake-meminfo.c -ldl
+    chmod 755 ~/smartstock/fake_meminfo.so
+    echo -e "${GREEN}✓ Đã tạo fake_meminfo.so thành công!${NC}"
+fi
+
 # Tạo file docker-compose.yml
 cat > docker-compose.yml << 'EOF'
 services:
@@ -40,10 +66,12 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "SmartStock@Prod2024!"
       MSSQL_MEMORY_LIMIT_MB: "512"
+      LD_PRELOAD: "/fake_meminfo.so"
     ports:
       - "1433:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
+      - ./fake_meminfo.so:/fake_meminfo.so:ro
     restart: always
     networks:
       - app-network
