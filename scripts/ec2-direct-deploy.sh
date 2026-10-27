@@ -36,6 +36,7 @@ services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: smartstock-db
+    user: "0:0"
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "SmartStock@Prod2024!"
