@@ -1,0 +1,62 @@
+services:
+  # ──────────────────────────────────────────────
+  # 1. SQL Server 2022 Database Container
+  # ──────────────────────────────────────────────
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: smartstock-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "SmartStockPass123!"
+      MSSQL_MEMORY_LIMIT_MB: "512"
+    ports:
+      - "14333:1433"
+    volumes:
+      - sqlserver-local-data:/var/opt/mssql
+    restart: always
+    networks:
+      - app-network
+
+  # ──────────────────────────────────────────────
+  # 2. Backend (.NET 10 API) Container
+  # ──────────────────────────────────────────────
+  smartstock-backend:
+    image: cuong03062005/smartstock-backend:latest
+    container_name: smartstock-backend
+    restart: always
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=SmartStockDB;User Id=sa;Password=SmartStockPass123!;TrustServerCertificate=True;"
+      Jwt__Key: "SmartStockJwtSuperSecretKey2024Production!!"
+      Jwt__Issuer: "SmartStock.API"
+      Jwt__Audience: "SmartStock.Client"
+    volumes:
+      - uploads-local-data:/app/uploads
+    depends_on:
+      - sqlserver
+    networks:
+      - app-network
+
+  # ──────────────────────────────────────────────
+  # 3. Frontend (React + Nginx) Container
+  # ──────────────────────────────────────────────
+  smartstock-frontend:
+    image: cuong03062005/smartstock-frontend:latest
+    container_name: smartstock-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - smartstock-backend
+    networks:
+      - app-network
+
+volumes:
+  sqlserver-local-data:
+  uploads-local-data:
+
+networks:
+  app-network:
+    driver: bridge
