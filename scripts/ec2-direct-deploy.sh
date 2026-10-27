@@ -36,14 +36,11 @@ services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: smartstock-db
-    user: "0:0"
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "SmartStock@Prod2024!"
     ports:
       - "1433:1433"
-    volumes:
-      - sqlserver-data:/var/opt/mssql
     restart: always
     networks:
       - app-network
@@ -79,7 +76,6 @@ services:
       - app-network
 
 volumes:
-  sqlserver-data:
   uploads-data:
 
 networks:
@@ -103,7 +99,7 @@ $DOCKER_BIN pull mcr.microsoft.com/mssql/server:2022-latest
 
 # Khởi động tất cả containers
 echo -e "${YELLOW}Đang khởi động 3 containers (Backend, Frontend, SQL Server)...${NC}"
-$DOCKER_BIN compose down 2>/dev/null || true
+$DOCKER_BIN compose down -v 2>/dev/null || true
 $DOCKER_BIN compose up -d
 
 echo -e "${YELLOW}Chờ SQL Server khởi động (15s) và đồng bộ Backend...${NC}"
