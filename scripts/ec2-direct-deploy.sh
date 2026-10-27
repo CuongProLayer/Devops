@@ -134,6 +134,10 @@ echo -e "${YELLOW}Đang khởi động 3 containers (Backend, Frontend, SQL Serv
 $DOCKER_BIN compose down 2>/dev/null || true
 $DOCKER_BIN compose up -d
 
+echo -e "${YELLOW}Chờ SQL Server khởi động (10s) và đồng bộ Backend...${NC}"
+sleep 10
+$DOCKER_BIN restart smartstock-backend 2>/dev/null || true
+
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "  ✅ Deploy hoàn tất!"
