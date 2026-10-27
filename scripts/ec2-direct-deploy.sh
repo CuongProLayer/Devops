@@ -38,7 +38,7 @@ services:
     container_name: smartstock-db
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "SmartStock@2024!"
+      MSSQL_SA_PASSWORD: "SmartStock@Prod2024!"
       MSSQL_MEMORY_LIMIT_MB: "512"
     ports:
       - "1433:1433"
@@ -56,7 +56,7 @@ services:
       - "5000:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=SmartStockDB;User Id=sa;Password=SmartStock@2024!;TrustServerCertificate=True;"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=SmartStockDB;User Id=sa;Password=SmartStock@Prod2024!;TrustServerCertificate=True;"
       Jwt__Key: "SmartStockJwtSuperSecretKey2024Production!!"
       Jwt__Issuer: "SmartStock.API"
       Jwt__Audience: "SmartStock.Client"
