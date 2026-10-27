@@ -34,11 +34,10 @@ cd ~/smartstock
 cat > docker-compose.yml << 'EOF'
 services:
   sqlserver:
-    image: justin2004/mssql_server_tiny:latest
+    image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: smartstock-db
     environment:
       ACCEPT_EULA: "Y"
-      SA_PASSWORD: "SmartStock@Prod2024!"
       MSSQL_SA_PASSWORD: "SmartStock@Prod2024!"
     ports:
       - "1433:1433"
@@ -99,15 +98,15 @@ fi
 echo -e "${YELLOW}Đang pull images từ Docker Hub...${NC}"
 $DOCKER_BIN pull cuong03062005/smartstock-backend:latest
 $DOCKER_BIN pull cuong03062005/smartstock-frontend:latest
-$DOCKER_BIN pull justin2004/mssql_server_tiny:latest
+$DOCKER_BIN pull mcr.microsoft.com/mssql/server:2022-latest
 
 # Khởi động tất cả containers
 echo -e "${YELLOW}Đang khởi động 3 containers (Backend, Frontend, SQL Server)...${NC}"
 $DOCKER_BIN compose down 2>/dev/null || true
 $DOCKER_BIN compose up -d
 
-echo -e "${YELLOW}Chờ SQL Server khởi động (10s) và đồng bộ Backend...${NC}"
-sleep 10
+echo -e "${YELLOW}Chờ SQL Server khởi động (15s) và đồng bộ Backend...${NC}"
+sleep 15
 $DOCKER_BIN restart smartstock-backend 2>/dev/null || true
 
 echo ""
