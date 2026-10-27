@@ -30,30 +30,23 @@ sudo sysctl -w vm.max_map_count=262144 >/dev/null || true
 mkdir -p ~/smartstock
 cd ~/smartstock
 
-# Bypass kiểm tra 2000MB RAM của SQL Server trên EC2 t2/t3.micro (1GB RAM)
-if [ ! -f ~/smartstock/fake_meminfo.so ]; then
-    echo -e "${YELLOW}Biên dịch bộ thư viện fake_meminfo.so để bypass giới hạn 2GB RAM của SQL Server...${NC}"
-    sudo apt-get update -qq && sudo apt-get install -y -qq gcc
-    cat << 'EOF_C' > ~/smartstock/fake-meminfo.c
-#define _GNU_SOURCE
-#include <dlfcn.h>
-#include <sys/sysinfo.h>
-
-typedef int (*real_sysinfo)(struct sysinfo *info);
-
-int sysinfo(struct sysinfo *info) {
-    void *pt = dlsym(RTLD_NEXT, "sysinfo");
-    if (!pt) return -1;
-    int ret = ((real_sysinfo)pt)(info);
-    if (info->totalram < 1000L * 1000L * 1000L * 4L) {
-        info->totalram = 1000L * 1000L * 1000L * 4L;
-    }
-    return ret;
-}
-EOF_C
-    gcc -shared -fPIC -o ~/smartstock/fake_meminfo.so ~/smartstock/fake-meminfo.c -ldl
-    chmod 755 ~/smartstock/fake_meminfo.so
-    echo -e "${GREEN}✓ Đã tạo fake_meminfo.so thành công!${NC}"
+# Patch trực tiếp file nhị phân sqlservr (hạ mức RAM yêu cầu từ 2000MB xuống 512MB)
+if [ ! -f ~/smartstock/sqlservr ]; then
+    echo -e "${YELLOW}Trích xuất và patch sqlservr để chạy trên EC2 1GB RAM...${NC}"
+    docker create --name temp-sql mcr.microsoft.com/mssql/server:2022-latest >/dev/null 2>&1 || sudo docker create --name temp-sql mcr.microsoft.com/mssql/server:2022-latest >/dev/null 2>&1
+    docker cp temp-sql:/opt/mssql/bin/sqlservr ~/smartstock/sqlservr >/dev/null 2>&1 || sudo docker cp temp-sql:/opt/mssql/bin/sqlservr ~/smartstock/sqlservr
+    docker rm -f temp-sql >/dev/null 2>&1 || sudo docker rm -f temp-sql >/dev/null 2>&1
+    python3 -c '
+import os
+path = os.path.expanduser("~/smartstock/sqlservr")
+data = open(path, "rb").read()
+# 0x77359400 = 2,000,000,000 bytes (2000MB) -> 0x1E848000 = 512,000,000 bytes (512MB)
+patched = data.replace(b"\x00\x94\x35\x77", b"\x00\x80\x84\x1e")
+open(path, "wb").write(patched)
+print("Số vị trí đã patch:", data.count(b"\x00\x94\x35\x77"))
+'
+    chmod 755 ~/smartstock/sqlservr
+    echo -e "${GREEN}✓ Đã patch sqlservr thành công!${NC}"
 fi
 
 # Tạo file docker-compose.yml
@@ -66,12 +59,11 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "SmartStock@Prod2024!"
       MSSQL_MEMORY_LIMIT_MB: "512"
-      LD_PRELOAD: "/fake_meminfo.so"
     ports:
       - "1433:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
-      - ./fake_meminfo.so:/fake_meminfo.so:ro
+      - ./sqlservr:/opt/mssql/bin/sqlservr:ro
     restart: always
     networks:
       - app-network
