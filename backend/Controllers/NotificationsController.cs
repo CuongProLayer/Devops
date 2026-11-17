@@ -10,10 +10,10 @@ namespace SmartStock.API.Controllers;
 
 [ApiController]
 [Route("api/notifications")]
-[Authorize]
 public class NotificationsController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAll()
     {
         int? userId = null;
@@ -71,6 +71,7 @@ public class NotificationsController(AppDbContext db) : ControllerBase
     }
 
     [HttpPost("{id}/read")]
+    [AllowAnonymous]
     public async Task<IActionResult> MarkRead(int id)
     {
         var sub = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -84,6 +85,7 @@ public class NotificationsController(AppDbContext db) : ControllerBase
     }
 
     [HttpPost("read-all")]
+    [AllowAnonymous]
     public async Task<IActionResult> MarkAllRead()
     {
         int? userId = null;

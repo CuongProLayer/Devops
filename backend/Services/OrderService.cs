@@ -63,6 +63,12 @@ public class OrderService(AppDbContext db) : IOrderService
 
     public async Task<OrderDto> CreateAsync(int employeeId, CreateOrderRequest request)
     {
+        var details = request.EffectiveDetails;
+        if (details.Count == 0)
+        {
+            throw new InvalidOperationException("Đơn hàng phải có ít nhất 1 sản phẩm.");
+        }
+
         // 1. Idempotency Check: Tránh bấm 2 lần tạo trùng đơn
         if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
         {
@@ -80,43 +86,112 @@ public class OrderService(AppDbContext db) : IOrderService
         await using var tx = await db.Database.BeginTransactionAsync();
         try
         {
-            var code = $"DH{DateTime.Now:yyyyMMdd}{(await db.Orders.CountAsync()) + 1:D4}";
+            var code = !string.IsNullOrWhiteSpace(request.OrderCode)
+                ? request.OrderCode.Trim()
+                : $"DH{DateTime.Now:yyyyMMdd}{(await db.Orders.CountAsync()) + 1:D4}";
+
+            if (!string.IsNullOrWhiteSpace(request.OrderCode) && await db.Orders.AnyAsync(o => o.OrderCode == code))
+            {
+                code = $"{code}-{Guid.NewGuid().ToString("N")[..4]}";
+            }
+
             decimal totalAmount = 0;
 
-            var targetStatus = string.IsNullOrWhiteSpace(request.Status) ? "confirmed" : request.Status.Trim().ToLowerInvariant();
-            if (targetStatus is not ("pending" or "confirmed" or "completed"))
-                throw new InvalidOperationException("Trạng thái đơn hàng không hợp lệ.");
-            var shouldDeductStock = targetStatus is "confirmed" or "completed";
+            var rawStatus = string.IsNullOrWhiteSpace(request.Status) ? "confirmed" : request.Status.Trim().ToLowerInvariant();
+            var targetStatus = rawStatus switch
+            {
+                "chờ xử lý" or "pending" => "pending",
+                "đã xác nhận" or "confirmed" => "confirmed",
+                "hoàn tất" or "giao thành công" or "completed" => "completed",
+                "hủy đơn" or "cancelled" => "cancelled",
+                _ => "confirmed"
+            };
+
+            // Luôn trừ kho khi khách đặt hàng thành công để giữ chỗ hàng tồn kho
+            var shouldDeductStock = true;
+
+            // Xử lý thông tin khách hàng nếu chưa có CustomerId
+            int? customerId = request.CustomerId;
+            var customerName = !string.IsNullOrWhiteSpace(request.CustomerName) ? request.CustomerName.Trim() : null;
+            var customerPhone = !string.IsNullOrWhiteSpace(request.CustomerPhone) ? request.CustomerPhone.Trim() : null;
+
+            if (!customerId.HasValue && (!string.IsNullOrWhiteSpace(customerPhone) || !string.IsNullOrWhiteSpace(customerName)))
+            {
+                var existingCustomer = !string.IsNullOrWhiteSpace(customerPhone)
+                    ? await db.Customers.FirstOrDefaultAsync(c => c.Phone == customerPhone && c.Status == "active")
+                    : null;
+
+                if (existingCustomer != null)
+                {
+                    customerId = existingCustomer.Id;
+                    if (string.IsNullOrWhiteSpace(existingCustomer.Address) && !string.IsNullOrWhiteSpace(request.ShippingAddress))
+                    {
+                        existingCustomer.Address = request.ShippingAddress;
+                        existingCustomer.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    var count = await db.Customers.CountAsync();
+                    var newCust = new Customer
+                    {
+                        CustomerCode = $"KH{DateTime.Now:yyyyMMdd}{count + 1:D4}",
+                        Name = customerName ?? "Khách hàng",
+                        Phone = customerPhone,
+                        Address = request.ShippingAddress,
+                        TotalPurchase = 0,
+                        Status = "active",
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    db.Customers.Add(newCust);
+                    await db.SaveChangesAsync();
+                    customerId = newCust.Id;
+                }
+            }
+
+            var note = request.Note;
+            if (string.IsNullOrWhiteSpace(note))
+            {
+                note = $"Khách: {customerName ?? "Khách lẻ"} - SĐT: {customerPhone ?? "-"} - Đ/c: {request.ShippingAddress ?? "-"}";
+            }
 
             var order = new Order
             {
                 OrderCode = code,
-                CustomerId = request.CustomerId,
+                CustomerId = customerId,
                 EmployeeId = employeeId,
-                Discount = request.Discount,
+                Discount = request.DiscountAmount ?? request.Discount,
                 PaymentMethod = request.PaymentMethod,
-                Note = request.Note,
+                Note = note,
                 Status = targetStatus,
-                IdempotencyKey = request.IdempotencyKey
+                IdempotencyKey = request.IdempotencyKey,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
             db.Orders.Add(order);
             await db.SaveChangesAsync();
 
-            foreach (var detail in request.Details)
+            var purchasedItemsList = new List<string>();
+
+            foreach (var detail in details)
             {
                 var product = await db.Products.FirstOrDefaultAsync(p =>
-                    p.Id == detail.ProductId && !p.IsDeleted && p.Status == "active")
+                    p.Id == detail.ProductId && !p.IsDeleted)
                     ?? throw new InvalidOperationException($"Không tìm thấy sản phẩm #{detail.ProductId}");
 
-                var lineTotal = detail.Quantity * product.Price;
+                var linePrice = detail.Price > 0 ? detail.Price : (detail.UnitPrice ?? product.Price);
+                var lineTotal = detail.Subtotal ?? (detail.Quantity * linePrice);
                 totalAmount += lineTotal;
+
+                purchasedItemsList.Add($"{product.Name} (x{detail.Quantity})");
 
                 db.OrderDetails.Add(new OrderDetail
                 {
                     OrderId = order.Id,
                     ProductId = detail.ProductId,
                     Quantity = detail.Quantity,
-                    Price = product.Price,
+                    Price = linePrice,
                     Total = lineTotal
                 });
 
@@ -151,8 +226,9 @@ public class OrderService(AppDbContext db) : IOrderService
                 }
             }
 
-            order.TotalAmount = totalAmount;
-            order.FinalAmount = Math.Max(0, totalAmount - request.Discount);
+            order.TotalAmount = request.TotalAmount ?? totalAmount;
+            var disc = request.DiscountAmount ?? request.Discount;
+            order.FinalAmount = Math.Max(0, order.TotalAmount - disc);
 
             // Nếu đơn hoàn tất thì gán số tiền đã thanh toán = FinalAmount
             if (targetStatus == "completed")
@@ -170,21 +246,37 @@ public class OrderService(AppDbContext db) : IOrderService
                     });
                 }
             }
-
-            await db.SaveChangesAsync();
+            else if (targetStatus == "confirmed" && (request.PaymentMethod.Contains("QR", StringComparison.OrdinalIgnoreCase) || request.PaymentMethod.Contains("transfer", StringComparison.OrdinalIgnoreCase)))
+            {
+                order.PaidAmount = order.FinalAmount;
+            }
 
             // Update customer total purchase nếu đơn xác nhận/hoàn thành
-            if (shouldDeductStock && request.CustomerId.HasValue)
+            if (customerId.HasValue)
             {
-                var customer = await db.Customers.FindAsync(request.CustomerId.Value);
+                var customer = await db.Customers.FindAsync(customerId.Value);
                 if (customer != null)
                 {
                     customer.TotalPurchase += order.FinalAmount;
                     customer.UpdatedAt = DateTime.UtcNow;
-                    await db.SaveChangesAsync();
                 }
             }
 
+            // Tự động bắn thông báo chuông Admin
+            var displayName = customerName ?? order.Customer?.Name ?? "Khách hàng";
+            var itemSummaryText = string.Join(", ", purchasedItemsList);
+            var notifMessage = $"🛒 Đơn hàng mới {order.OrderCode}: Khách hàng {displayName} vừa đặt mua {itemSummaryText} - Tổng: {order.FinalAmount:N0}₫";
+
+            db.Notifications.Add(new Notification
+            {
+                Title = $"Đơn hàng mới {order.OrderCode}",
+                Message = notifMessage,
+                Type = "order",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await db.SaveChangesAsync();
             await tx.CommitAsync();
             return (await GetByIdAsync(order.Id))!;
         }
@@ -204,8 +296,11 @@ public class OrderService(AppDbContext db) : IOrderService
                 $"UPDATE Orders SET UpdatedAt = {DateTime.UtcNow} WHERE Id = {id} AND Status = 'pending' AND IsDeleted = 0");
             if (claimed == 0)
             {
-                if (!await db.Orders.AnyAsync(order => order.Id == id && !order.IsDeleted))
+                var existing = await db.Orders.FirstOrDefaultAsync(order => order.Id == id && !order.IsDeleted);
+                if (existing == null)
                     throw new KeyNotFoundException($"Không tìm thấy đơn hàng #{id}");
+                if (existing.Status == "confirmed")
+                    return (await GetByIdAsync(id))!;
                 throw new InvalidOperationException("Đơn hàng không còn ở trạng thái chờ xác nhận.");
             }
 
@@ -214,48 +309,13 @@ public class OrderService(AppDbContext db) : IOrderService
                 .FirstOrDefaultAsync(o => o.Id == id && !o.IsDeleted)
                 ?? throw new KeyNotFoundException($"Không tìm thấy đơn hàng #{id}");
 
-            if (order.Status != "pending")
-                throw new InvalidOperationException($"Chỉ đơn hàng ở trạng thái 'pending' mới có thể xác nhận (trạng thái hiện tại: {order.Status}).");
-
-            // Tiến hành trừ kho atomic chống race condition
-            foreach (var detail in order.OrderDetails)
-            {
-                var product = await db.Products.FindAsync(detail.ProductId)
-                    ?? throw new InvalidOperationException($"Sản phẩm #{detail.ProductId} không còn tồn tại");
-
-                var before = product.Quantity;
-                var affectedRows = await db.Database.ExecuteSqlInterpolatedAsync(
-                    $"UPDATE Products SET Quantity = Quantity - {detail.Quantity}, UpdatedAt = {DateTime.UtcNow} WHERE Id = {detail.ProductId} AND Quantity >= {detail.Quantity}"
-                );
-
-                if (affectedRows == 0)
-                {
-                    throw new InvalidOperationException(
-                        $"Không thể xác nhận đơn vì sản phẩm '{product.Name}' không đủ tồn kho (Tồn: {product.Quantity}, yêu cầu: {detail.Quantity}).");
-                }
-
-                await db.Entry(product).ReloadAsync();
-
-                db.InventoryTransactions.Add(new InventoryTransaction
-                {
-                    ProductId = detail.ProductId,
-                    Type = "SALE",
-                    Quantity = detail.Quantity,
-                    BeforeQuantity = before,
-                    AfterQuantity = product.Quantity,
-                    ReferenceId = order.Id,
-                    Note = $"Xác nhận đơn hàng {order.OrderCode} - Xuất kho",
-                    EmployeeId = employeeId
-                });
-            }
-
             order.Status = "confirmed";
             order.UpdatedAt = DateTime.UtcNow;
 
             if (order.CustomerId.HasValue)
             {
                 var customer = await db.Customers.FindAsync(order.CustomerId.Value);
-                if (customer != null)
+                if (customer != null && customer.TotalPurchase == 0)
                 {
                     customer.TotalPurchase += order.FinalAmount;
                     customer.UpdatedAt = DateTime.UtcNow;
@@ -333,8 +393,8 @@ public class OrderService(AppDbContext db) : IOrderService
             if (order.Status is not ("pending" or "confirmed" or "completed"))
                 throw new InvalidOperationException("Trạng thái hiện tại không thể hủy.");
 
-            // Chỉ hoàn kho nếu đơn trước đó ĐÃ trừ kho (confirmed hoặc completed)
-            var wasStockDeducted = order.Status is "confirmed" or "completed";
+            // Chỉ hoàn kho nếu đơn trước đó ĐÃ trừ kho
+            var wasStockDeducted = order.Status is "pending" or "confirmed" or "completed";
             var previousStatus = order.Status;
             var claimed = await db.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE Orders SET UpdatedAt = {DateTime.UtcNow} WHERE Id = {orderId} AND Status = {previousStatus} AND IsDeleted = 0");
@@ -536,7 +596,10 @@ public class OrderService(AppDbContext db) : IOrderService
         o.Id, o.OrderCode, o.CustomerId, o.Customer?.Name,
         o.EmployeeId, o.Employee?.FullName ?? "", o.TotalAmount, o.Discount, o.FinalAmount,
         o.PaidAmount, o.PaymentMethod, o.Status, o.Note, o.CreatedAt,
-        o.OrderDetails.Select(d => new OrderDetailDto(d.Id, d.ProductId, d.Product?.Name ?? "", d.Quantity, d.Price, d.Total, d.ReturnedQuantity)).ToList(),
+        o.OrderDetails.Select(d => new OrderDetailDto(
+            d.Id, d.ProductId, d.Product?.Name ?? "", d.Quantity, d.Price, d.Total, d.ReturnedQuantity,
+            d.Product?.ProductCode, d.Product?.Image
+        )).ToList(),
         o.Payments.Select(p => new PaymentDto(p.Id, p.OrderId, o.OrderCode, p.Amount, p.PaymentMethod, p.TransactionCode, p.Note, p.EmployeeId, p.Employee?.FullName ?? "", p.CreatedAt)).ToList()
     );
 }

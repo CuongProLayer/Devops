@@ -391,16 +391,20 @@ export const api = {
 
   // --- ORDERS ---
   async getOrders(params = {}) {
+    let baseItems = []
+    let totalCount = 0
+
     try {
       const query = new URLSearchParams()
-      if (params.status) query.set('status', params.status)
+      if (params.status && params.status !== 'all') query.set('status', params.status)
       if (params.customerId) query.set('customerId', params.customerId)
       if (params.page) query.set('page', params.page)
       if (params.pageSize) query.set('pageSize', params.pageSize)
       const qs = query.toString()
       const res = await apiRequest(`/orders${qs ? `?${qs}` : ''}`)
       if (res && ((Array.isArray(res) && res.length > 0) || (res.items && res.items.length > 0))) {
-        return res
+        baseItems = Array.isArray(res) ? res : (res.items || [])
+        totalCount = res.totalCount || baseItems.length
       }
     } catch (e) {
       console.warn('API getOrders error, using fallback seed data:', e)
@@ -414,17 +418,18 @@ export const api = {
         customerId: 1,
         customerName: 'Nguyễn Minh Anh',
         customerPhone: '0912345678',
+        shippingAddress: 'Số 123 Đường Nguyễn Huệ, Quận 1, TP.HCM',
         employeeId: 1,
         employeeName: 'Quản trị viên',
         totalAmount: 29990000,
         discount: 0,
         finalAmount: 29990000,
         paidAmount: 29990000,
-        paymentMethod: 'bank_transfer',
+        paymentMethod: 'VietQR',
         status: 'completed',
         createdAt: '2026-10-15T09:30:00Z',
         items: [
-          { productId: 1, productName: 'iPhone 15 Pro Max 256GB', quantity: 1, price: 29990000, total: 29990000 }
+          { productId: 1, sku: 'IP15PM-256', productName: 'iPhone 15 Pro Max 256GB', image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=300&auto=format&fit=crop&q=80', quantity: 1, unitPrice: 29990000, price: 29990000, total: 29990000, subtotal: 29990000 }
         ]
       },
       {
@@ -433,17 +438,18 @@ export const api = {
         customerId: 1,
         customerName: 'Nguyễn Minh Anh',
         customerPhone: '0912345678',
+        shippingAddress: 'Số 123 Đường Nguyễn Huệ, Quận 1, TP.HCM',
         employeeId: 3,
         employeeName: 'Nguyễn Hà Sales',
         totalAmount: 32490000,
         discount: 0,
         finalAmount: 32490000,
         paidAmount: 32490000,
-        paymentMethod: 'bank_transfer',
+        paymentMethod: 'VietQR',
         status: 'completed',
         createdAt: '2026-10-18T14:15:00Z',
         items: [
-          { productId: 2, productName: 'MacBook Air M3 15 inch', quantity: 1, price: 32490000, total: 32490000 }
+          { productId: 2, sku: 'MBA-M3-15', productName: 'MacBook Air M3 15 inch', image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=300&auto=format&fit=crop&q=80', quantity: 1, unitPrice: 32490000, price: 32490000, total: 32490000, subtotal: 32490000 }
         ]
       },
       {
@@ -452,17 +458,18 @@ export const api = {
         customerId: 2,
         customerName: 'Trần Quốc Bảo',
         customerPhone: '0987654321',
+        shippingAddress: 'Số 45 Lê Duẩn, Quận 1, TP.HCM',
         employeeId: 3,
         employeeName: 'Nguyễn Hà Sales',
         totalAmount: 7490000,
         discount: 0,
         finalAmount: 7490000,
         paidAmount: 7490000,
-        paymentMethod: 'cash',
+        paymentMethod: 'COD',
         status: 'completed',
         createdAt: '2026-10-20T11:00:00Z',
         items: [
-          { productId: 3, productName: 'Sony WH-1000XM5', quantity: 1, price: 7490000, total: 7490000 }
+          { productId: 3, sku: 'SONY-WH5-BLK', productName: 'Sony WH-1000XM5', image: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=300&auto=format&fit=crop&q=80', quantity: 1, unitPrice: 7490000, price: 7490000, total: 7490000, subtotal: 7490000 }
         ]
       },
       {
@@ -471,17 +478,18 @@ export const api = {
         customerId: 1,
         customerName: 'Nguyễn Minh Anh',
         customerPhone: '0912345678',
+        shippingAddress: 'Số 123 Đường Nguyễn Huệ, Quận 1, TP.HCM',
         employeeId: 1,
         employeeName: 'Quản trị viên',
         totalAmount: 500000,
         discount: 0,
         finalAmount: 500000,
         paidAmount: 0,
-        paymentMethod: 'cod',
+        paymentMethod: 'COD',
         status: 'confirmed',
         createdAt: '2026-10-24T16:20:00Z',
         items: [
-          { productId: 5, productName: 'Cáp sạc Anker USB-C to Lightning', quantity: 2, price: 250000, total: 500000 }
+          { productId: 5, sku: 'ANK-LGT-09M', productName: 'Cáp sạc Anker USB-C to Lightning', image: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=300&auto=format&fit=crop&q=80', quantity: 2, unitPrice: 250000, price: 250000, total: 500000, subtotal: 500000 }
         ]
       },
       {
@@ -490,17 +498,18 @@ export const api = {
         customerId: 2,
         customerName: 'Trần Quốc Bảo',
         customerPhone: '0987654321',
+        shippingAddress: 'Số 45 Lê Duẩn, Quận 1, TP.HCM',
         employeeId: 3,
         employeeName: 'Nguyễn Hà Sales',
         totalAmount: 250000,
         discount: 0,
         finalAmount: 250000,
         paidAmount: 0,
-        paymentMethod: 'bank_transfer',
+        paymentMethod: 'VietQR',
         status: 'pending',
         createdAt: '2026-10-25T10:45:00Z',
         items: [
-          { productId: 5, productName: 'Cáp sạc Anker USB-C to Lightning', quantity: 1, price: 250000, total: 250000 }
+          { productId: 5, sku: 'ANK-LGT-09M', productName: 'Cáp sạc Anker USB-C to Lightning', image: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=300&auto=format&fit=crop&q=80', quantity: 1, unitPrice: 250000, price: 250000, total: 250000, subtotal: 250000 }
         ]
       },
       {
@@ -509,27 +518,103 @@ export const api = {
         customerId: null,
         customerName: 'Khách lẻ vãng lai',
         customerPhone: '0933112233',
+        shippingAddress: 'Mua trực tiếp tại Store',
         employeeId: 3,
         employeeName: 'Nguyễn Hà Sales',
         totalAmount: 25000000,
         discount: 0,
         finalAmount: 25000000,
         paidAmount: 0,
-        paymentMethod: 'cash',
+        paymentMethod: 'COD',
         status: 'partially_returned',
         createdAt: '2026-10-26T13:00:00Z',
         items: [
-          { productId: 1, productName: 'iPhone 15 Pro Max 256GB', quantity: 1, price: 25000000, total: 25000000 }
+          { productId: 1, sku: 'IP15PM-256', productName: 'iPhone 15 Pro Max 256GB', image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=300&auto=format&fit=crop&q=80', quantity: 1, unitPrice: 25000000, price: 25000000, total: 25000000, subtotal: 25000000 }
         ]
       }
     ]
 
+    if (baseItems.length === 0) {
+      baseItems = [...demoOrders]
+    }
+
+    // Luôn hợp nhất (merge) theo mã đơn với kho dữ liệu chung smartstock_shared_orders
+    let sharedOrders = []
+    try {
+      sharedOrders = JSON.parse(localStorage.getItem('smartstock_shared_orders') || '[]')
+    } catch {}
+
+    const orderMap = new Map()
+
+    // 1. Nạp đơn từ API hoặc seed vào Map
+    baseItems.forEach((o) => {
+      const code = o.orderCode || `ORD-DH-${o.id}`
+      const rawDetails = o.items || o.orderDetails || o.details || []
+      orderMap.set(code, {
+        ...o,
+        orderCode: code,
+        items: rawDetails,
+        orderDetails: rawDetails,
+      })
+    })
+
+    // 2. Hợp nhất đơn từ localStorage chung smartstock_shared_orders
+    sharedOrders.forEach((so) => {
+      const code = so.orderCode || (so.id ? `ORD-DH-${so.id}` : null)
+      if (!code) return
+
+      const existing = orderMap.get(code)
+      if (existing) {
+        const mergedItems = (so.items && so.items.length > 0)
+          ? so.items
+          : ((existing.items && existing.items.length > 0) ? existing.items : (existing.orderDetails || []))
+
+        orderMap.set(code, {
+          ...existing,
+          ...so,
+          orderCode: code,
+          items: mergedItems,
+          orderDetails: mergedItems,
+          status: so.status || existing.status,
+          customerName: so.customerName || existing.customerName,
+          customerPhone: so.customerPhone || existing.customerPhone,
+          shippingAddress: so.shippingAddress || existing.shippingAddress,
+          paymentMethod: so.paymentMethod || existing.paymentMethod,
+        })
+      } else {
+        orderMap.set(code, {
+          ...so,
+          orderCode: code,
+          items: so.items || so.orderDetails || so.details || [],
+          orderDetails: so.items || so.orderDetails || so.details || [],
+        })
+      }
+    })
+
+    let mergedList = Array.from(orderMap.values())
+
+    // Lọc theo status nếu params có truyền
+    if (params.status && params.status !== 'all') {
+      const st = params.status.toLowerCase()
+      mergedList = mergedList.filter((o) => {
+        const currentSt = (o.status || '').toLowerCase()
+        if (st === 'pending') return currentSt === 'pending' || currentSt === 'chờ xử lý'
+        if (st === 'confirmed') return currentSt === 'confirmed' || currentSt === 'đã xác nhận'
+        if (st === 'completed') return currentSt === 'completed' || currentSt === 'hoàn tất' || currentSt === 'giao thành công'
+        if (st === 'cancelled') return currentSt === 'cancelled' || currentSt === 'đã hủy'
+        return currentSt === st
+      })
+    }
+
+    // Sắp xếp đơn mới nhất lên đầu bảng
+    mergedList.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+
     return {
-      items: demoOrders,
-      totalCount: demoOrders.length,
-      page: 1,
-      pageSize: 50,
-      totalPages: 1
+      items: mergedList,
+      totalCount: mergedList.length,
+      page: params.page || 1,
+      pageSize: params.pageSize || 50,
+      totalPages: Math.ceil(mergedList.length / (params.pageSize || 50)) || 1
     }
   },
 
@@ -544,30 +629,74 @@ export const api = {
     })
   },
 
+  syncSharedOrderStatus(idOrCode, newStatus) {
+    try {
+      const shared = JSON.parse(localStorage.getItem('smartstock_shared_orders') || '[]')
+      const updated = shared.map((o) => {
+        if (o.id === idOrCode || o.orderCode === idOrCode || String(o.id) === String(idOrCode)) {
+          return { ...o, status: newStatus, updatedAt: new Date().toISOString() }
+        }
+        return o
+      })
+      localStorage.setItem('smartstock_shared_orders', JSON.stringify(updated))
+      window.dispatchEvent(new Event('smartstock-data-sync'))
+    } catch (e) {
+      console.warn('Error syncing shared order status:', e)
+    }
+  },
+
   async confirmOrder(id) {
-    return apiRequest(`/orders/${id}/confirm`, {
-      method: 'POST',
-    })
+    try {
+      const res = await apiRequest(`/orders/${id}/confirm`, {
+        method: 'POST',
+      })
+      this.syncSharedOrderStatus(id, 'confirmed')
+      return res
+    } catch (err) {
+      this.syncSharedOrderStatus(id, 'confirmed')
+      throw err
+    }
   },
 
   async updateOrderStatus(id, status) {
-    return apiRequest(`/orders/${id}/status`, {
-      method: 'PUT',
-      body: JSON.stringify(status),
-    })
+    try {
+      const res = await apiRequest(`/orders/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify(status),
+      })
+      this.syncSharedOrderStatus(id, status)
+      return res
+    } catch (err) {
+      this.syncSharedOrderStatus(id, status)
+      throw err
+    }
   },
 
   async cancelOrder(id) {
-    return apiRequest(`/orders/${id}/cancel`, {
-      method: 'POST',
-    })
+    try {
+      const res = await apiRequest(`/orders/${id}/cancel`, {
+        method: 'POST',
+      })
+      this.syncSharedOrderStatus(id, 'cancelled')
+      return res
+    } catch (err) {
+      this.syncSharedOrderStatus(id, 'cancelled')
+      throw err
+    }
   },
 
   async returnOrder(id, data) {
-    return apiRequest(`/orders/${id}/return`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    })
+    try {
+      const res = await apiRequest(`/orders/${id}/return`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+      this.syncSharedOrderStatus(id, 'returned')
+      return res
+    } catch (err) {
+      this.syncSharedOrderStatus(id, 'returned')
+      throw err
+    }
   },
 
   // --- IMPORTS ---
@@ -662,11 +791,11 @@ export const api = {
 
   // --- DASHBOARD & REPORTS ---
   async getDashboard() {
+    let baseDashboard = null
     try {
       const res = await apiRequest('/dashboard')
       if (res && (res.monthRevenue > 0 || res.totalOrders > 0)) {
-        // Ensure outOfStockCount is accurately at least 1 (Samsung S24 Ultra = 0)
-        return {
+        baseDashboard = {
           ...res,
           outOfStockCount: Math.max(res.outOfStockCount || 0, 1),
           lowStockCount: res.lowStockCount ?? 0,
@@ -676,23 +805,60 @@ export const api = {
       console.warn('API getDashboard error, using fallback seed metrics:', e)
     }
 
-    return {
-      totalProducts: 5,
-      totalCustomers: 2,
-      totalOrders: 6,
-      todayRevenue: 0,
-      monthRevenue: 69970000,
-      lowStockCount: 0,
-      outOfStockCount: 1, // Samsung Galaxy S24 Ultra
-      monthlyRevenue: [
-        { month: 10, year: 2026, revenue: 69970000, count: 3 }
-      ],
-      topProducts: [
-        { productId: 2, productName: 'MacBook Air M3 15 inch', totalSold: 1, totalRevenue: 32490000 },
-        { productId: 1, productName: 'iPhone 15 Pro Max 256GB', totalSold: 1, totalRevenue: 29990000 },
-        { productId: 3, productName: 'Sony WH-1000XM5', totalSold: 1, totalRevenue: 7490000 }
-      ]
+    if (!baseDashboard) {
+      baseDashboard = {
+        totalProducts: 5,
+        totalCustomers: 2,
+        totalOrders: 6,
+        todayRevenue: 0,
+        monthRevenue: 69970000,
+        lowStockCount: 0,
+        outOfStockCount: 1, // Samsung Galaxy S24 Ultra
+        monthlyRevenue: [
+          { month: 10, year: 2026, revenue: 69970000, count: 3 }
+        ],
+        topProducts: [
+          { productId: 2, productName: 'MacBook Air M3 15 inch', totalSold: 1, totalRevenue: 32490000 },
+          { productId: 1, productName: 'iPhone 15 Pro Max 256GB', totalSold: 1, totalRevenue: 29990000 },
+          { productId: 3, productName: 'Sony WH-1000XM5', totalSold: 1, totalRevenue: 7490000 }
+        ]
+      }
     }
+
+    // Tự động tính toán hợp nhất với đơn hàng khách vừa mua trong smartstock_shared_orders
+    try {
+      const sharedOrders = JSON.parse(localStorage.getItem('smartstock_shared_orders') || '[]')
+      const activeShared = sharedOrders.filter((o) => o.status !== 'cancelled')
+
+      if (activeShared.length > 0) {
+        const now = new Date()
+        const todayStr = now.toISOString().slice(0, 10)
+        const thisMonth = now.getMonth() + 1
+        const thisYear = now.getFullYear()
+
+        let addTodayRev = 0
+        let addMonthRev = 0
+
+        activeShared.forEach((o) => {
+          const amt = Number(o.finalAmount || o.totalAmount || 0)
+          const d = o.createdAt ? new Date(o.createdAt) : now
+          if (o.createdAt && o.createdAt.startsWith(todayStr)) {
+            addTodayRev += amt
+          }
+          if (d.getMonth() + 1 === thisMonth && d.getFullYear() === thisYear) {
+            addMonthRev += amt
+          }
+        })
+
+        baseDashboard.totalOrders = Math.max(baseDashboard.totalOrders, 6) + activeShared.length
+        baseDashboard.todayRevenue = (baseDashboard.todayRevenue || 0) + addTodayRev
+        baseDashboard.monthRevenue = (baseDashboard.monthRevenue || 0) + addMonthRev
+      }
+    } catch (err) {
+      console.warn('Dashboard shared orders sync error:', err)
+    }
+
+    return baseDashboard
   },
 
   async getRevenueReport(period = 'monthly', year = new Date().getFullYear(), month = null) {

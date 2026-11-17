@@ -182,23 +182,43 @@ public record OrderDto(int Id, string OrderCode, int? CustomerId, string? Custom
     decimal PaidAmount, string PaymentMethod, string Status, string? Note, DateTime CreatedAt,
     List<OrderDetailDto> Details, List<PaymentDto> Payments);
 
-public record OrderDetailDto(int Id, int ProductId, string ProductName, int Quantity, decimal Price, decimal Total, int ReturnedQuantity);
+public record OrderDetailDto(int Id, int ProductId, string ProductName, int Quantity, decimal Price, decimal Total, int ReturnedQuantity, string? Sku = null, string? Image = null);
 
 public record CreateOrderRequest(
     int? CustomerId,
     [Range(0, 10000000000, ErrorMessage = "Chiết khấu không hợp lệ")] decimal Discount,
     [Required(ErrorMessage = "Phương thức thanh toán không được để trống")][StringLength(50)] string PaymentMethod,
     [StringLength(500, ErrorMessage = "Ghi chú không vượt quá 500 ký tự")] string? Note,
-    [Required(ErrorMessage = "Chi tiết đơn hàng không được để trống")][MinLength(1, ErrorMessage = "Đơn hàng phải có ít nhất 1 sản phẩm")] List<CreateOrderDetailRequest> Details,
+    List<CreateOrderDetailRequest>? Details = null,
     [StringLength(100)] string? IdempotencyKey = null,
-    [RegularExpression("^(pending|confirmed|completed)$", ErrorMessage = "Trạng thái đơn hàng không hợp lệ")]
-    [StringLength(20)] string Status = "confirmed"
-);
+    [StringLength(50)] string Status = "confirmed",
+    List<CreateOrderDetailRequest>? Items = null,
+    List<CreateOrderDetailRequest>? OrderItems = null,
+    string? OrderCode = null,
+    string? CustomerName = null,
+    string? CustomerPhone = null,
+    string? ShippingAddress = null,
+    decimal? TotalAmount = null,
+    decimal? DiscountAmount = null,
+    string? VoucherCode = null
+)
+{
+    public List<CreateOrderDetailRequest> EffectiveDetails =>
+        (Details != null && Details.Count > 0) ? Details :
+        (Items != null && Items.Count > 0) ? Items :
+        (OrderItems != null && OrderItems.Count > 0) ? OrderItems :
+        [];
+}
 
 public record CreateOrderDetailRequest(
     [Range(1, int.MaxValue, ErrorMessage = "Mã sản phẩm không hợp lệ")] int ProductId,
     [Range(1, int.MaxValue, ErrorMessage = "Số lượng phải lớn hơn 0")] int Quantity,
-    [Range(0, 10000000000, ErrorMessage = "Giá bán không hợp lệ")] decimal Price);
+    [Range(0, 10000000000, ErrorMessage = "Giá bán không hợp lệ")] decimal Price,
+    string? ProductName = null,
+    string? Sku = null,
+    string? Image = null,
+    decimal? UnitPrice = null,
+    decimal? Subtotal = null);
 
 // Return Order
 public record ReturnOrderRequest(

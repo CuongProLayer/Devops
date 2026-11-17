@@ -26,17 +26,17 @@ public class DashboardService(AppDbContext db) : IDashboardService
         var monthStart = new DateTime(now.Year, now.Month, 1);
 
         var todayRevenue = await db.Orders.AsNoTracking()
-            .Where(o => !o.IsDeleted && o.CreatedAt >= todayStart && (o.Status == "completed" || o.Status == "partially_returned"))
-            .SumAsync(o => (decimal?)o.PaidAmount) ?? 0m;
+            .Where(o => !o.IsDeleted && o.CreatedAt >= todayStart && (o.Status == "confirmed" || o.Status == "completed" || o.Status == "partially_returned"))
+            .SumAsync(o => (decimal?)(o.FinalAmount > 0 ? o.FinalAmount : o.PaidAmount)) ?? 0m;
 
         var monthRevenue = await db.Orders.AsNoTracking()
-            .Where(o => !o.IsDeleted && o.CreatedAt >= monthStart && (o.Status == "completed" || o.Status == "partially_returned"))
-            .SumAsync(o => (decimal?)o.PaidAmount) ?? 0m;
+            .Where(o => !o.IsDeleted && o.CreatedAt >= monthStart && (o.Status == "confirmed" || o.Status == "completed" || o.Status == "partially_returned"))
+            .SumAsync(o => (decimal?)(o.FinalAmount > 0 ? o.FinalAmount : o.PaidAmount)) ?? 0m;
 
         var monthlyRevenueRaw = await db.Orders.AsNoTracking()
-            .Where(o => !o.IsDeleted && (o.Status == "completed" || o.Status == "partially_returned") && o.CreatedAt.Year >= now.Year - 1)
+            .Where(o => !o.IsDeleted && (o.Status == "confirmed" || o.Status == "completed" || o.Status == "partially_returned") && o.CreatedAt.Year >= now.Year - 1)
             .GroupBy(o => new { o.CreatedAt.Year, o.CreatedAt.Month })
-            .Select(g => new { g.Key.Year, g.Key.Month, Revenue = g.Sum(o => o.PaidAmount), Count = g.Count() })
+            .Select(g => new { g.Key.Year, g.Key.Month, Revenue = g.Sum(o => o.FinalAmount > 0 ? o.FinalAmount : o.PaidAmount), Count = g.Count() })
             .ToListAsync();
 
         var monthlyRevenue = monthlyRevenueRaw

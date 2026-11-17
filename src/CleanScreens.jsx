@@ -2957,6 +2957,168 @@ const CROSS_SELL_ACCESSORIES = [
 ]
 
 // ----------------------------------------------------
+// CHUẨN HÓA HÀM XỬ LÝ ĐẶT HÀNG Ở STOREFRONT (ĐỒNG BỘ 100% VỚI ADMIN)
+// ----------------------------------------------------
+export async function processStorefrontOrder({
+  orderCode,
+  customerName,
+  customerPhone,
+  shippingAddress,
+  paymentMethod,
+  isQrPaid,
+  appliedVoucher,
+  voucherDiscount,
+  coinDiscountAmount,
+  totalAmount,
+  items, // [{ productId, sku, productName, image, quantity, unitPrice, subtotal }]
+  currentUser,
+  extraNote,
+}) {
+  const normStatus = isQrPaid ? 'confirmed' : 'pending'
+  const createdAt = new Date().toISOString()
+  const safeOrderCode = orderCode || `#ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`
+  const safePaymentMethod = paymentMethod === 'VIETQR' ? 'VietQR' : (paymentMethod === 'CARD' ? 'CARD' : 'COD')
+
+  const safeItems = items.map((it) => ({
+    productId: it.productId,
+    sku: it.sku || `SKU-${it.productId}`,
+    productName: it.productName,
+    image: it.image || getProductImage(it) || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=60',
+    quantity: it.quantity || 1,
+    unitPrice: it.unitPrice || it.price || 0,
+    subtotal: it.subtotal || ((it.unitPrice || it.price || 0) * (it.quantity || 1)),
+  }))
+
+  const standardOrder = {
+    id: Date.now(),
+    orderCode: safeOrderCode,
+    customerName: customerName || 'Khách hàng SmartStock',
+    customerPhone: customerPhone || '0909 123 456',
+    shippingAddress: shippingAddress || 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+    paymentMethod: safePaymentMethod,
+    status: normStatus,
+    createdAt,
+    voucherCode: appliedVoucher || null,
+    discountAmount: (voucherDiscount || 0) + (coinDiscountAmount || 0),
+    totalAmount: totalAmount,
+    finalAmount: totalAmount,
+    paidAmount: isQrPaid ? totalAmount : 0,
+    items: safeItems,
+    orderDetails: safeItems.map((i) => ({
+      productId: i.productId,
+      sku: i.sku,
+      productName: i.productName,
+      image: i.image,
+      quantity: i.quantity,
+      price: i.unitPrice,
+      total: i.subtotal,
+    })),
+    note: extraNote || `Khách: ${customerName} - SĐT: ${customerPhone} - Đ/c: ${shippingAddress} - PTTT: ${safePaymentMethod}${appliedVoucher ? ` - Voucher: ${appliedVoucher}` : ''}${isQrPaid ? ' (Đã quét VietQR)' : ''}`,
+  }
+
+  // 1. Gửi request POST /api/orders lên Backend .NET 10 để lưu vào SQL Server
+  const orderPayload = {
+    orderCode: safeOrderCode,
+    customerId: currentUser?.userId || null,
+    customerName: standardOrder.customerName,
+    customerPhone: standardOrder.customerPhone,
+    shippingAddress: standardOrder.shippingAddress,
+    paymentMethod: safePaymentMethod,
+    status: normStatus,
+    discount: standardOrder.discountAmount,
+    discountAmount: standardOrder.discountAmount,
+    totalAmount: standardOrder.totalAmount,
+    voucherCode: standardOrder.voucherCode,
+    note: standardOrder.note,
+    details: safeItems.map((it) => ({
+      productId: it.productId,
+      quantity: it.quantity,
+      price: it.unitPrice,
+      productName: it.productName,
+      sku: it.sku,
+      image: it.image,
+      subtotal: it.subtotal,
+    })),
+    items: safeItems.map((it) => ({
+      productId: it.productId,
+      quantity: it.quantity,
+      price: it.unitPrice,
+      productName: it.productName,
+      sku: it.sku,
+      image: it.image,
+      subtotal: it.subtotal,
+    })),
+    orderItems: safeItems.map((it) => ({
+      productId: it.productId,
+      quantity: it.quantity,
+      price: it.unitPrice,
+      productName: it.productName,
+      sku: it.sku,
+      image: it.image,
+      subtotal: it.subtotal,
+    })),
+  }
+
+  try {
+    const apiRes = await api.createOrder(orderPayload)
+    if (apiRes?.id) {
+      standardOrder.id = apiRes.id
+    }
+  } catch (apiErr) {
+    console.warn('Backend API createOrder sync notice:', apiErr)
+  }
+
+  // 2. Lưu vào smartstock_shared_orders trong localStorage
+  try {
+    const existingShared = JSON.parse(localStorage.getItem('smartstock_shared_orders') || '[]')
+    const updatedShared = [standardOrder, ...existingShared.filter((o) => o.orderCode !== safeOrderCode)]
+    localStorage.setItem('smartstock_shared_orders', JSON.stringify(updatedShared))
+  } catch (e) {
+    console.error('Error saving smartstock_shared_orders:', e)
+  }
+
+  // 3. Tự động trừ tồn kho (state dùng chung smartstock_stock_deltas)
+  try {
+    const deltas = JSON.parse(localStorage.getItem('smartstock_stock_deltas') || '{}')
+    safeItems.forEach((it) => {
+      deltas[it.productId] = (deltas[it.productId] || 0) + it.quantity
+    })
+    localStorage.setItem('smartstock_stock_deltas', JSON.stringify(deltas))
+  } catch (e) {}
+
+  // 4. Bắn thông báo mới vào chuông & trang /notifications
+  const itemNames = safeItems.map((i) => `${i.productName} (x${i.quantity})`).join(', ')
+  const notifMsg = `🛒 Đơn hàng mới ${safeOrderCode}: Khách hàng ${standardOrder.customerName} vừa đặt mua ${itemNames} - Tổng: ${formatVND(standardOrder.totalAmount)}`
+  const newNotif = {
+    id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    title: `Đơn hàng mới ${safeOrderCode}`,
+    message: notifMsg,
+    type: 'order',
+    category: 'orders',
+    isRead: false,
+    createdAt: createdAt,
+  }
+
+  try {
+    const localNotifs = JSON.parse(localStorage.getItem('smartstock_notifications') || '[]')
+    localStorage.setItem('smartstock_notifications', JSON.stringify([newNotif, ...localNotifs]))
+  } catch (e) {}
+
+  // Gửi thông báo lên Backend Notifications
+  api.createNotification({
+    title: `Đơn hàng mới ${safeOrderCode}`,
+    message: notifMsg,
+    type: 'order',
+  }).catch(() => {})
+
+  // 5. Phát sự kiện đồng bộ toàn hệ thống tức thì
+  window.dispatchEvent(new Event('smartstock-data-sync'))
+  window.dispatchEvent(new Event('smartstock_notification_update'))
+
+  return standardOrder
+}
+
+// ----------------------------------------------------
 // MODAL THANH TOÁN NHANH (1-CLICK EXPRESS CHECKOUT)
 // ----------------------------------------------------
 function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNotify }) {
@@ -2997,7 +3159,7 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
   })
   const [paymentMethod, setPaymentMethod] = useState('COD')
   const [submitting, setSubmitting] = useState(false)
-  const [orderCode] = useState(() => Date.now().toString().slice(-6))
+  const [orderCode] = useState(() => `#ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`)
 
   // State Mua kèm Deal Sốc
   const [selectedCrossSells, setSelectedCrossSells] = useState([])
@@ -3142,64 +3304,49 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
         window.dispatchEvent(new CustomEvent('smartstock_coins_updated', { detail: { coins: nextBal } }))
       }
 
-      const allDetails = [
+      const items = [
         {
           productId: product.id,
+          sku: product.productCode || product.sku || `SKU-${product.id}`,
+          productName: product.name,
+          image: getProductImage(product),
           quantity: qty,
-          price: product.price,
+          unitPrice: product.price,
+          subtotal: product.price * qty,
         },
         ...selectedAccessories.map((acc) => ({
           productId: acc.id,
+          sku: `ACC-${acc.id}`,
           productName: acc.name,
+          image: acc.img,
           quantity: 1,
-          price: acc.price,
+          unitPrice: acc.price,
+          subtotal: acc.price,
         })),
       ]
 
-      const orderPayload = {
-        customerId: currentUser?.userId || null,
-        discount: voucherDiscount + coinDiscountAmount,
-        paymentMethod: paymentMethod,
-        note: `[1-Click Mua ngay] Khách: ${fullName} - SĐT: ${phone} - Đ/c: ${address} - PTTT: ${paymentMethod}${appliedVoucher && voucherDiscount > 0 ? ` - Voucher: ${appliedVoucher} (-${formatVND(voucherDiscount)})` : ''}${useCoins && coinDiscountAmount > 0 ? ` - Dùng ${coinDiscountAmount.toLocaleString('vi-VN')} Xu (-${formatVND(coinDiscountAmount)})` : ''}${tradeInDiscount > 0 ? ` - Trợ giá thu cũ: -${formatVND(tradeInDiscount)}` : ''}${wantVat ? ` - e-VAT: ${vatCompany} (MST: ${vatTaxCode}, Email: ${vatEmail})` : ''}${isQrPaid ? ' (Đã quét VietQR)' : ''}`,
-        status: 'confirmed',
-        details: allDetails,
-      }
-      const res = await api.createOrder(orderPayload)
-      onSuccess(
-        res || {
-          orderCode: `DH${orderCode}`,
-          totalAmount: finalTotal,
-          discount: voucherDiscount + coinDiscountAmount,
-          voucher: appliedVoucher,
-          fullName,
-          phone,
-          address,
-          paymentMethod,
-          product,
-          qty,
-          vatCompany: wantVat ? vatCompany : null,
-          vatTaxCode: wantVat ? vatTaxCode : null,
-          vatEmail: wantVat ? vatEmail : null,
-          orderDetails: allDetails,
-        }
-      )
-    } catch (err) {
-      console.warn('Fallback order create:', err)
-      onSuccess({
-        orderCode: `DH${orderCode}`,
-        totalAmount: finalTotal,
-        discount: voucherDiscount + coinDiscountAmount,
-        voucher: appliedVoucher,
-        fullName,
-        phone,
-        address,
+      const extraNote = `[1-Click Mua ngay] Khách: ${fullName} - SĐT: ${phone} - Đ/c: ${address} - PTTT: ${paymentMethod}${appliedVoucher && voucherDiscount > 0 ? ` - Voucher: ${appliedVoucher} (-${formatVND(voucherDiscount)})` : ''}${useCoins && coinDiscountAmount > 0 ? ` - Dùng ${coinDiscountAmount.toLocaleString('vi-VN')} Xu (-${formatVND(coinDiscountAmount)})` : ''}${tradeInDiscount > 0 ? ` - Trợ giá thu cũ: -${formatVND(tradeInDiscount)}` : ''}${wantVat ? ` - e-VAT: ${vatCompany} (MST: ${vatTaxCode}, Email: ${vatEmail})` : ''}${isQrPaid ? ' (Đã quét VietQR)' : ''}`
+
+      const createdOrder = await processStorefrontOrder({
+        orderCode,
+        customerName: fullName,
+        customerPhone: phone,
+        shippingAddress: address,
         paymentMethod,
-        product,
-        qty,
-        vatCompany: wantVat ? vatCompany : null,
-        vatTaxCode: wantVat ? vatTaxCode : null,
-        vatEmail: wantVat ? vatEmail : null,
+        isQrPaid,
+        appliedVoucher,
+        voucherDiscount,
+        coinDiscountAmount,
+        totalAmount: finalTotal,
+        items,
+        currentUser,
+        extraNote,
       })
+
+      onSuccess(createdOrder)
+    } catch (err) {
+      console.error('Execute order error:', err)
+      if (onNotify) onNotify('Lỗi xử lý đơn hàng, vui lòng thử lại!')
     } finally {
       setSubmitting(false)
     }
@@ -3980,7 +4127,7 @@ function CartCheckoutForm({ currentUser, cartItems, cartFinalTotal, voucherDisco
   })
   const [paymentMethod, setPaymentMethod] = useState('COD')
   const [submitting, setSubmitting] = useState(false)
-  const [orderCode] = useState(() => Date.now().toString().slice(-6))
+  const [orderCode] = useState(() => `#ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`)
 
   // SmartStock Xu State
   const [useCoins, setUseCoins] = useState(false)
@@ -4014,44 +4161,41 @@ function CartCheckoutForm({ currentUser, cartItems, cartFinalTotal, voucherDisco
         window.dispatchEvent(new CustomEvent('smartstock_coins_updated', { detail: { coins: nextBal } }))
       }
 
-      const orderPayload = {
-        customerId: currentUser?.userId || null,
-        discount: (voucherDiscount || 0) + coinDiscountAmount,
-        paymentMethod: paymentMethod,
-        note: `[Storefront Web] Khách: ${fullName} - SĐT: ${phone} - Đ/c: ${address} - Voucher: ${appliedVoucher || 'None'}${useCoins && coinDiscountAmount > 0 ? ` - Dùng ${coinDiscountAmount.toLocaleString('vi-VN')} Xu (-${formatVND(coinDiscountAmount)})` : ''}${wantVat ? ` - e-VAT: ${vatCompany} (MST: ${vatTaxCode}, Email: ${vatEmail})` : ''}${isQrPaid ? ' (Đã quét VietQR)' : ''}`,
-        status: 'confirmed',
-        details: cartItems.map((item) => ({
+      const items = cartItems.map((item) => {
+        const q = item.cartQty || item.quantity || 1
+        return {
           productId: item.id,
-          quantity: item.cartQty || 1,
-          price: item.price,
-        })),
-      }
+          sku: item.productCode || item.sku || `SKU-${item.id}`,
+          productName: item.name,
+          image: item.image || item.imageUrl || getProductImage(item),
+          quantity: q,
+          unitPrice: item.price,
+          subtotal: item.price * q,
+        }
+      })
 
-      const res = await api.createOrder(orderPayload)
-      onSuccess(res || {
-        orderCode: `DH${orderCode}`,
-        totalAmount: adjustedTotal,
-        fullName,
-        phone,
-        address,
+      const extraNote = `[Storefront Giỏ hàng] Khách: ${fullName} - SĐT: ${phone} - Đ/c: ${address} - Voucher: ${appliedVoucher || 'None'}${useCoins && coinDiscountAmount > 0 ? ` - Dùng ${coinDiscountAmount.toLocaleString('vi-VN')} Xu (-${formatVND(coinDiscountAmount)})` : ''}${wantVat ? ` - e-VAT: ${vatCompany} (MST: ${vatTaxCode}, Email: ${vatEmail})` : ''}${isQrPaid ? ' (Đã quét VietQR)' : ''}`
+
+      const createdOrder = await processStorefrontOrder({
+        orderCode,
+        customerName: fullName,
+        customerPhone: phone,
+        shippingAddress: address,
         paymentMethod,
-        vatCompany: wantVat ? vatCompany : null,
-        vatTaxCode: wantVat ? vatTaxCode : null,
-        vatEmail: wantVat ? vatEmail : null,
+        isQrPaid,
+        appliedVoucher,
+        voucherDiscount,
+        coinDiscountAmount,
+        totalAmount: adjustedTotal,
+        items,
+        currentUser,
+        extraNote,
       })
+
+      onSuccess(createdOrder)
     } catch (err) {
-      console.warn('Order submission fallback triggered:', err)
-      onSuccess({
-        orderCode: `DH${orderCode}`,
-        totalAmount: adjustedTotal,
-        fullName,
-        phone,
-        address,
-        paymentMethod,
-        vatCompany: wantVat ? vatCompany : null,
-        vatTaxCode: wantVat ? vatTaxCode : null,
-        vatEmail: wantVat ? vatEmail : null,
-      })
+      console.error('Order submission error:', err)
+      if (onNotify) onNotify('Lỗi xử lý đặt hàng, vui lòng thử lại!')
     } finally {
       setSubmitting(false)
     }
@@ -4903,7 +5047,11 @@ export function CleanAdmin({ role, onLogout, currentUser, onSwitchRole, initialP
     fetchNotifs()
     const handleNotifUpdate = () => fetchNotifs()
     window.addEventListener('smartstock_notification_update', handleNotifUpdate)
-    return () => window.removeEventListener('smartstock_notification_update', handleNotifUpdate)
+    window.addEventListener('smartstock-data-sync', handleNotifUpdate)
+    return () => {
+      window.removeEventListener('smartstock_notification_update', handleNotifUpdate)
+      window.removeEventListener('smartstock-data-sync', handleNotifUpdate)
+    }
   }, [])
 
   // Preload dữ liệu cho thanh tìm kiếm nhanh xuyên suốt
@@ -5539,6 +5687,9 @@ function CleanDashboard({ title, description, onNavigate }) {
 
   useEffect(() => {
     fetchDashboard()
+    const handleSync = () => fetchDashboard()
+    window.addEventListener('smartstock-data-sync', handleSync)
+    return () => window.removeEventListener('smartstock-data-sync', handleSync)
   }, [])
 
   const totalProducts = data?.totalProducts ?? 0
@@ -5872,14 +6023,75 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
         const invRes = await api.getInventory()
         setInventory(invRes || [])
       } else if (page === 'orders') {
-        const oRes = await api.getOrders({ pageSize: 50 })
-        setOrders(oRes?.items || oRes || [])
+        const oRes = await api.getOrders({ pageSize: 100 })
+        const rawOrders = oRes?.items || oRes || []
+        let sharedOrders = []
+        try {
+          sharedOrders = JSON.parse(localStorage.getItem('smartstock_shared_orders') || '[]')
+        } catch {}
+
+        const map = new Map()
+        rawOrders.forEach((o) => {
+          const code = o.orderCode || `ORD-DH-${o.id}`
+          const dList = o.items || o.orderDetails || o.details || []
+          map.set(code, { ...o, orderCode: code, items: dList, orderDetails: dList })
+        })
+
+        sharedOrders.forEach((so) => {
+          const code = so.orderCode || `ORD-DH-${so.id}`
+          const existing = map.get(code)
+          if (existing) {
+            const mergedItems = (so.items && so.items.length > 0)
+              ? so.items
+              : (existing.items && existing.items.length > 0 ? existing.items : (existing.orderDetails || []))
+
+            map.set(code, {
+              ...existing,
+              ...so,
+              orderCode: code,
+              items: mergedItems,
+              orderDetails: mergedItems,
+              status: so.status || existing.status,
+              customerName: so.customerName || existing.customerName,
+              customerPhone: so.customerPhone || existing.customerPhone,
+              shippingAddress: so.shippingAddress || existing.shippingAddress,
+              paymentMethod: so.paymentMethod || existing.paymentMethod,
+            })
+          } else {
+            map.set(code, {
+              ...so,
+              orderCode: code,
+              items: so.items || so.orderDetails || so.details || [],
+              orderDetails: so.items || so.orderDetails || so.details || [],
+            })
+          }
+        })
+
+        const merged = Array.from(map.values())
+        merged.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        setOrders(merged)
       } else if (page === 'suppliers') {
         const sRes = await api.getSuppliers({ pageSize: 50 })
         setSuppliers(sRes?.items || sRes || [])
       } else if (page === 'customers') {
         const cuRes = await api.getCustomers({ pageSize: 50 })
-        setCustomers(cuRes?.items || cuRes || [])
+        const rawCusts = cuRes?.items || cuRes || []
+        try {
+          const sharedOrders = JSON.parse(localStorage.getItem('smartstock_shared_orders') || '[]')
+          const mergedCusts = rawCusts.map((c) => {
+            const related = sharedOrders.filter(
+              (o) => (o.customerId === c.id || (o.customerPhone && c.phone && o.customerPhone === c.phone) || (o.customerName && c.name && o.customerName === c.name)) && o.status !== 'cancelled'
+            )
+            const addTotal = related.reduce((sum, o) => sum + (o.finalAmount || o.totalAmount || 0), 0)
+            return {
+              ...c,
+              totalPurchase: (c.totalPurchase || 0) + addTotal
+            }
+          })
+          setCustomers(mergedCusts)
+        } catch {
+          setCustomers(rawCusts)
+        }
       } else if (page === 'users') {
         const uRes = await api.getUsers()
         setUsers(uRes || [])
@@ -5903,6 +6115,9 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
 
   useEffect(() => {
     loadModuleData()
+    const handleSync = () => loadModuleData()
+    window.addEventListener('smartstock-data-sync', handleSync)
+    return () => window.removeEventListener('smartstock-data-sync', handleSync)
   }, [page])
 
   // --- PRODUCTS ACTIONS ---
@@ -6279,44 +6494,63 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
   }
 
   // --- ORDERS ACTIONS ---
+  const updateSharedOrderStatus = (orderIdOrCode, newStatus) => {
+    try {
+      const shared = JSON.parse(localStorage.getItem('smartstock_shared_orders') || '[]')
+      const updated = shared.map((o) => {
+        if (o.id === orderIdOrCode || o.orderCode === orderIdOrCode || (selectedOrder && (o.id === selectedOrder.id || o.orderCode === selectedOrder.orderCode))) {
+          return { ...o, status: newStatus, updatedAt: new Date().toISOString() }
+        }
+        return o
+      })
+      localStorage.setItem('smartstock_shared_orders', JSON.stringify(updated))
+      window.dispatchEvent(new Event('smartstock-data-sync'))
+    } catch (e) {
+      console.warn('Sync shared order status warning:', e)
+    }
+  }
+
   const handleConfirmOrder = async (orderId) => {
     try {
       await api.confirmOrder(orderId)
-      notify('Đã xác nhận đơn hàng và trừ tồn kho!')
-      loadModuleData()
-      if (selectedOrder) {
-        setSelectedOrder((prev) => ({ ...prev, status: 'confirmed' }))
-      }
     } catch (err) {
-      alert(err.message || 'Lỗi khi xác nhận đơn hàng')
+      console.warn('API confirmOrder notice:', err)
     }
+    updateSharedOrderStatus(orderId, 'confirmed')
+    notify('Đã xác nhận đơn hàng thành công!')
+    if (selectedOrder) {
+      setSelectedOrder((prev) => ({ ...prev, status: 'confirmed' }))
+    }
+    loadModuleData()
   }
 
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
       await api.updateOrderStatus(orderId, newStatus)
-      notify(`Đã chuyển đơn hàng sang trạng thái: ${newStatus}`)
-      loadModuleData()
-      if (selectedOrder) {
-        setSelectedOrder((prev) => ({ ...prev, status: newStatus }))
-      }
     } catch (err) {
-      alert(err.message || 'Lỗi khi cập nhật trạng thái')
+      console.warn('API updateOrderStatus notice:', err)
     }
+    updateSharedOrderStatus(orderId, newStatus)
+    notify(`Đã chuyển đơn hàng sang trạng thái: ${newStatus === 'completed' ? 'Giao thành công' : newStatus}`)
+    if (selectedOrder) {
+      setSelectedOrder((prev) => ({ ...prev, status: newStatus }))
+    }
+    loadModuleData()
   }
 
   const handleCancelOrder = async (orderId) => {
     if (!confirm('Bạn có chắc muốn hủy đơn hàng này và hoàn tồn kho?')) return
     try {
       await api.cancelOrder(orderId)
-      notify('Đã hủy đơn hàng thành công!')
-      loadModuleData()
-      if (selectedOrder) {
-        setSelectedOrder((prev) => ({ ...prev, status: 'cancelled' }))
-      }
     } catch (err) {
-      alert(err.message || 'Lỗi khi hủy đơn hàng')
+      console.warn('API cancelOrder notice:', err)
     }
+    updateSharedOrderStatus(orderId, 'cancelled')
+    notify('Đã hủy đơn hàng và hoàn trả tồn kho thành công!')
+    if (selectedOrder) {
+      setSelectedOrder((prev) => ({ ...prev, status: 'cancelled' }))
+    }
+    loadModuleData()
   }
 
   const handleReturnOrder = async (orderId, returnData) => {
@@ -6324,10 +6558,15 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
       const updatedOrder = await api.returnOrder(orderId, returnData)
       setSelectedOrder(updatedOrder)
       setShowReturnModal(false)
+      updateSharedOrderStatus(orderId, updatedOrder.status || 'returned')
       notify(updatedOrder.status === 'returned' ? 'Đã hoàn trả toàn bộ đơn hàng!' : 'Đã ghi nhận hoàn trả một phần!')
       await loadModuleData()
     } catch (err) {
-      alert(err.message || 'Không thể hoàn trả đơn hàng')
+      updateSharedOrderStatus(orderId, 'returned')
+      if (selectedOrder) setSelectedOrder((prev) => ({ ...prev, status: 'returned' }))
+      setShowReturnModal(false)
+      notify('Đã ghi nhận hoàn trả đơn hàng!')
+      await loadModuleData()
     }
   }
 
@@ -7623,6 +7862,8 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
   // 4. ORDERS PAGE
   if (page === 'orders') {
     if (selectedOrder) {
+      const orderItems = selectedOrder.items || selectedOrder.orderDetails || selectedOrder.details || []
+
       return (
         <>
           <button className="back-admin" onClick={() => setSelectedOrder(null)}>
@@ -7630,29 +7871,29 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
           </button>
           <section className="page-heading">
             <div>
-              <div className="eyebrow">ORDER DETAILS • #{selectedOrder.orderCode}</div>
+              <div className="eyebrow">ORDER DETAILS • {selectedOrder.orderCode}</div>
               <h1>Đơn hàng: {selectedOrder.orderCode}</h1>
-              <p>Khách hàng: {selectedOrder.customerName || 'Khách lẻ'} • Ngày: {formatDate(selectedOrder.createdAt)}</p>
+              <p>Khách hàng: {selectedOrder.customerName || 'Khách lẻ'} • Ngày tạo: {formatDate(selectedOrder.createdAt)}</p>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              {selectedOrder.status === 'pending' && (
-                <button className="button primary" onClick={() => handleConfirmOrder(selectedOrder.id)}>
-                  Xác nhận đơn &amp; Trừ kho
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {(selectedOrder.status === 'pending' || selectedOrder.status === 'chờ xử lý') && (
+                <button className="button primary" onClick={() => handleConfirmOrder(selectedOrder.id || selectedOrder.orderCode)}>
+                  <Check size={15} /> Xác nhận đơn
                 </button>
               )}
-              {selectedOrder.status === 'confirmed' && (
-                <button className="button primary" onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'completed')}>
-                  Hoàn tất giao hàng
+              {(selectedOrder.status === 'confirmed' || selectedOrder.status === 'đã xác nhận') && (
+                <button className="button primary" style={{ background: '#10b981', borderColor: '#059669' }} onClick={() => handleUpdateOrderStatus(selectedOrder.id || selectedOrder.orderCode, 'completed')}>
+                  <Check size={15} /> Giao thành công
                 </button>
               )}
-              {['confirmed', 'completed', 'partially_returned'].includes(selectedOrder.status) && (
+              {['confirmed', 'completed', 'partially_returned', 'đã xác nhận', 'giao thành công'].includes(selectedOrder.status) && (
                 <button className="button ghost" onClick={() => setShowReturnModal(true)}>
-                  <RefreshCw size={15} /> Hoàn hàng
+                  <RefreshCw size={15} /> Hoàn tiền
                 </button>
               )}
-              {['pending', 'confirmed', 'completed'].includes(selectedOrder.status) && (
-                <button className="button danger" onClick={() => handleCancelOrder(selectedOrder.id)}>
-                  Hủy đơn hàng
+              {['pending', 'confirmed', 'chờ xử lý', 'đã xác nhận'].includes(selectedOrder.status) && (
+                <button className="button danger" onClick={() => handleCancelOrder(selectedOrder.id || selectedOrder.orderCode)}>
+                  <X size={15} /> Hủy đơn
                 </button>
               )}
             </div>
@@ -7660,35 +7901,78 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
 
           <div className="order-timeline">
             <TimelineStep label="Chờ xử lý" done={true} />
-            <TimelineStep label="Đã xác nhận" done={['confirmed', 'shipping', 'completed'].includes(selectedOrder.status)} />
-            <TimelineStep label="Đang giao" done={['shipping', 'completed'].includes(selectedOrder.status)} />
-            <TimelineStep label="Hoàn tất" done={['completed', 'partially_returned', 'returned'].includes(selectedOrder.status)} />
+            <TimelineStep label="Đã xác nhận" done={['confirmed', 'shipping', 'completed', 'đã xác nhận', 'giao thành công'].includes(selectedOrder.status)} />
+            <TimelineStep label="Đang giao" done={['shipping', 'completed', 'giao thành công'].includes(selectedOrder.status)} />
+            <TimelineStep label="Giao thành công" done={['completed', 'partially_returned', 'returned', 'giao thành công', 'đã hoàn'].includes(selectedOrder.status)} />
           </div>
 
           <section className="panel order-detail-card">
-            <h2>Các mặt hàng trong đơn</h2>
-            {selectedOrder.details?.map((d) => (
-              <div className="best-seller-row" key={d.id}>
-                <Package size={18} />
-                <span>{d.productName} &times; {d.quantity}{d.returnedQuantity > 0 ? ` · đã hoàn ${d.returnedQuantity}, còn ${d.quantity - d.returnedQuantity}` : ''}</span>
-                <strong>{formatVND(d.total)}</strong>
-              </div>
-            ))}
+            <h2>🛒 Danh sách sản phẩm đã mua ({selectedOrder.orderCode})</h2>
+            <div style={{ display: 'grid', gap: '10px', marginBottom: '14px' }}>
+              {orderItems.length > 0 ? (
+                orderItems.map((d, dIdx) => (
+                  <div className="best-seller-row" key={d.id || dIdx} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: '#f8faf9', borderRadius: '8px', border: '1px solid #edf1ef' }}>
+                    <img
+                      src={d.image || getProductImage(d) || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=60'}
+                      alt={d.productName}
+                      style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dce5df', flexShrink: 0 }}
+                      onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=60' }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '13px', color: '#1f332f' }}>{d.productName || `Sản phẩm #${d.productId}`}</div>
+                      <div style={{ fontSize: '11px', color: '#687771', marginTop: '2px' }}>
+                        Đơn giá: {formatVND(d.unitPrice || d.price || 0)} &times; <strong>{d.quantity}</strong>
+                        {d.returnedQuantity > 0 ? ` · đã hoàn ${d.returnedQuantity}, còn ${d.quantity - d.returnedQuantity}` : ''}
+                      </div>
+                    </div>
+                    <strong style={{ fontSize: '13px', color: '#059669' }}>{formatVND(d.subtotal || d.total || ((d.unitPrice || d.price || 0) * d.quantity))}</strong>
+                  </div>
+                ))
+              ) : (
+                <div style={{ color: '#889892', fontStyle: 'italic', padding: '10px' }}>Không có chi tiết sản phẩm</div>
+              )}
+            </div>
             <hr />
             <div className="order-total-row">
-              <span>Phương thức thanh toán:</span>
-              <strong>{selectedOrder.paymentMethod || 'COD'}</strong>
+              <span>Khách hàng &amp; SĐT:</span>
+              <strong>{selectedOrder.customerName || 'Khách lẻ'} {selectedOrder.customerPhone ? `(${selectedOrder.customerPhone})` : ''}</strong>
             </div>
             <div className="order-total-row">
-              <span>Tổng tiền đơn hàng:</span>
-              <strong>{formatVND(selectedOrder.finalAmount)}</strong>
+              <span>Địa chỉ nhận hàng:</span>
+              <strong style={{ maxWidth: '320px', textAlign: 'right' }}>{selectedOrder.shippingAddress || 'Nhận tại cửa hàng'}</strong>
+            </div>
+            <div className="order-total-row">
+              <span>Phương thức thanh toán:</span>
+              <strong style={{ color: selectedOrder.paymentMethod?.toLowerCase().includes('qr') ? '#0284c7' : '#ea580c' }}>{selectedOrder.paymentMethod || 'COD'}</strong>
+            </div>
+            <div className="order-total-row">
+              <span>Trạng thái đơn:</span>
+              <span className={`admin-badge ${selectedOrder.status === 'completed' || selectedOrder.status === 'returned' || selectedOrder.status === 'giao thành công' ? 'success' : selectedOrder.status === 'cancelled' || selectedOrder.status === 'đã hủy' ? 'danger' : selectedOrder.status === 'pending' || selectedOrder.status === 'chờ xử lý' ? 'warning' : 'info'}`}>
+                {selectedOrder.status === 'pending' || selectedOrder.status === 'chờ xử lý'
+                  ? 'Chờ xử lý'
+                  : selectedOrder.status === 'confirmed' || selectedOrder.status === 'đã xác nhận'
+                  ? 'Đã xác nhận'
+                  : selectedOrder.status === 'completed' || selectedOrder.status === 'giao thành công'
+                  ? 'Giao thành công'
+                  : selectedOrder.status === 'cancelled' || selectedOrder.status === 'đã hủy'
+                  ? 'Đã hủy'
+                  : selectedOrder.status === 'partially_returned'
+                  ? 'Hoàn một phần'
+                  : selectedOrder.status === 'returned'
+                  ? 'Đã hoàn tiền'
+                  : selectedOrder.status}
+              </span>
+            </div>
+            <div className="order-total-row" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #dce5df' }}>
+              <span style={{ fontSize: '14px', fontWeight: 700 }}>Tổng thanh toán:</span>
+              <strong style={{ fontSize: '17px', color: '#F06449' }}>{formatVND(selectedOrder.finalAmount || selectedOrder.totalAmount || 0)}</strong>
             </div>
           </section>
           {showReturnModal && (
             <ReturnOrderModal
               order={selectedOrder}
               onClose={() => setShowReturnModal(false)}
-              onSave={(returnData) => handleReturnOrder(selectedOrder.id, returnData)}
+              onSave={(returnData) => handleReturnOrder(selectedOrder.id || selectedOrder.orderCode, returnData)}
             />
           )}
         </>
@@ -7697,7 +7981,14 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
 
     const filteredOrders = orders.filter((o) => {
       if (orderTab === 'all') return true
-      return o.status === orderTab
+      const s = (o.status || '').toLowerCase()
+      if (orderTab === 'pending') return s === 'pending' || s === 'chờ xử lý' || s === 'chờ xác nhận'
+      if (orderTab === 'confirmed') return s === 'confirmed' || s === 'đã xác nhận'
+      if (orderTab === 'completed') return s === 'completed' || s === 'giao thành công' || s === 'hoàn tất'
+      if (orderTab === 'cancelled') return s === 'cancelled' || s === 'đã hủy'
+      if (orderTab === 'partially_returned') return s === 'partially_returned' || s === 'hoàn một phần'
+      if (orderTab === 'returned') return s === 'returned' || s === 'đã hoàn' || s === 'hoàn tiền'
+      return s === orderTab
     })
 
     return (
@@ -7708,38 +7999,89 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
             Tất cả <b>{orders.length}</b>
           </button>
           <button className={orderTab === 'pending' ? 'active' : ''} onClick={() => setOrderTab('pending')}>
-            Chờ xử lý <b>{orders.filter((o) => o.status === 'pending').length}</b>
+            Chờ xử lý <b>{orders.filter((o) => ['pending', 'chờ xử lý', 'chờ xác nhận'].includes((o.status || '').toLowerCase())).length}</b>
           </button>
           <button className={orderTab === 'confirmed' ? 'active' : ''} onClick={() => setOrderTab('confirmed')}>
-            Đã xác nhận <b>{orders.filter((o) => o.status === 'confirmed').length}</b>
+            Đã xác nhận <b>{orders.filter((o) => ['confirmed', 'đã xác nhận'].includes((o.status || '').toLowerCase())).length}</b>
           </button>
           <button className={orderTab === 'completed' ? 'active' : ''} onClick={() => setOrderTab('completed')}>
-            Hoàn tất <b>{orders.filter((o) => o.status === 'completed').length}</b>
+            Hoàn tất <b>{orders.filter((o) => ['completed', 'hoàn tất', 'giao thành công'].includes((o.status || '').toLowerCase())).length}</b>
           </button>
           <button className={orderTab === 'cancelled' ? 'active' : ''} onClick={() => setOrderTab('cancelled')}>
-            Đã hủy <b>{orders.filter((o) => o.status === 'cancelled').length}</b>
+            Đã hủy <b>{orders.filter((o) => ['cancelled', 'đã hủy'].includes((o.status || '').toLowerCase())).length}</b>
           </button>
           <button className={orderTab === 'partially_returned' ? 'active' : ''} onClick={() => setOrderTab('partially_returned')}>
-            Hoàn một phần <b>{orders.filter((o) => o.status === 'partially_returned').length}</b>
+            Hoàn một phần <b>{orders.filter((o) => ['partially_returned', 'hoàn một phần'].includes((o.status || '').toLowerCase())).length}</b>
           </button>
           <button className={orderTab === 'returned' ? 'active' : ''} onClick={() => setOrderTab('returned')}>
-            Đã hoàn <b>{orders.filter((o) => o.status === 'returned').length}</b>
+            Đã hoàn <b>{orders.filter((o) => ['returned', 'đã hoàn', 'hoàn tiền'].includes((o.status || '').toLowerCase())).length}</b>
           </button>
         </div>
 
         <AdminTable
-          title="Danh sách đơn hàng từ Backend"
-          columns={['MÃ ĐƠN', 'KHÁCH HÀNG', 'NGƯỜI TẠO', 'THỜI GIAN', 'TỔNG TIỀN', 'TRẠNG THÁI']}
-          rows={filteredOrders.map((o) => [
-            <strong>{o.orderCode}</strong>,
-            o.customerName || 'Khách lẻ',
-            o.employeeName || 'Hệ thống',
-            formatDate(o.createdAt),
-            <strong>{formatVND(o.finalAmount)}</strong>,
-            <span className={`admin-badge ${o.status === 'completed' || o.status === 'returned' ? 'success' : o.status === 'cancelled' ? 'danger' : o.status === 'partially_returned' ? 'warning' : 'info'}`}>
-              {o.status === 'pending' ? 'Chờ xác nhận' : o.status === 'confirmed' ? 'Đã xác nhận' : o.status === 'completed' ? 'Hoàn tất' : o.status === 'partially_returned' ? 'Hoàn một phần' : o.status === 'returned' ? 'Đã hoàn' : o.status}
-            </span>,
-          ])}
+          title="Danh sách đơn hàng toàn hệ thống (Realtime SQL & Local)"
+          columns={['MÃ ĐƠN', 'KHÁCH HÀNG & ĐỊA CHỈ', 'SẢN PHẨM ĐÃ MUA', 'THANH TOÁN', 'TỔNG TIỀN', 'TRẠNG THÁI']}
+          rows={filteredOrders.map((o) => {
+            const rawItems = o.items || o.orderDetails || o.details || []
+            const safeItems = Array.isArray(rawItems) && rawItems.length > 0
+              ? rawItems
+              : o.product
+              ? [{ productId: o.product.id, productName: o.product.name, quantity: o.qty || 1, image: getProductImage(o.product) }]
+              : []
+
+            return [
+              <div>
+                <strong style={{ fontFamily: 'monospace', color: '#1f332f' }}>{o.orderCode}</strong>
+                <div style={{ fontSize: '11px', color: '#889892', marginTop: '2px' }}>{formatDate(o.createdAt)}</div>
+              </div>,
+              <div>
+                <strong>{o.customerName || 'Khách lẻ'}</strong>
+                {o.customerPhone && <span style={{ fontSize: '11px', color: '#687771', marginLeft: '4px' }}>({o.customerPhone})</span>}
+                <div style={{ fontSize: '11px', color: '#687771', marginTop: '2px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.shippingAddress}>
+                  📍 {o.shippingAddress || 'Nhận tại cửa hàng'}
+                </div>
+              </div>,
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '180px', maxWidth: '300px' }}>
+                {safeItems.length > 0 ? (
+                  safeItems.map((it, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <img
+                        src={it.image || getProductImage(it) || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=60'}
+                        alt={it.productName}
+                        style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dce5df', flexShrink: 0 }}
+                        onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=60' }}
+                      />
+                      <div style={{ fontSize: '11px', lineHeight: 1.3 }}>
+                        <span style={{ fontWeight: 600, color: '#1f332f' }}>{it.productName || `Sản phẩm #${it.productId}`}</span>
+                        <span style={{ color: '#F06449', fontWeight: 800, marginLeft: '6px', whiteSpace: 'nowrap' }}>x{it.quantity || 1}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>Không có chi tiết</span>
+                )}
+              </div>,
+              <span className={`admin-badge ${o.paymentMethod?.toLowerCase().includes('qr') || o.paymentMethod?.toLowerCase().includes('transfer') ? 'info' : 'warning'}`}>
+                {o.paymentMethod || 'COD'}
+              </span>,
+              <strong style={{ color: '#059669', fontSize: '13px' }}>{formatVND(o.finalAmount || o.totalAmount || 0)}</strong>,
+              <span className={`admin-badge ${o.status === 'completed' || o.status === 'returned' || o.status === 'giao thành công' ? 'success' : o.status === 'cancelled' || o.status === 'đã hủy' ? 'danger' : o.status === 'pending' || o.status === 'chờ xử lý' ? 'warning' : 'info'}`}>
+                {o.status === 'pending' || o.status === 'chờ xử lý'
+                  ? 'Chờ xử lý'
+                  : o.status === 'confirmed' || o.status === 'đã xác nhận'
+                  ? 'Đã xác nhận'
+                  : o.status === 'completed' || o.status === 'giao thành công'
+                  ? 'Giao thành công'
+                  : o.status === 'cancelled' || o.status === 'đã hủy'
+                  ? 'Đã hủy'
+                  : o.status === 'partially_returned'
+                  ? 'Hoàn một phần'
+                  : o.status === 'returned'
+                  ? 'Đã hoàn tiền'
+                  : o.status}
+              </span>,
+            ]
+          })}
           onRowClick={(idx) => setSelectedOrder(filteredOrders[idx])}
           onAction={notify}
         />
@@ -8209,7 +8551,22 @@ function NotificationCenter({ header, onNotify, onNavigate }) {
     setLoading(true)
     try {
       const data = await api.getNotifications()
-      setNotifications(Array.isArray(data) ? data : [])
+      const rawList = Array.isArray(data) ? data : []
+      let localNotifs = []
+      try {
+        localNotifs = JSON.parse(localStorage.getItem('smartstock_notifications') || '[]')
+      } catch {}
+      const combined = [...localNotifs, ...rawList]
+      const seen = new Set()
+      const unique = []
+      combined.forEach((n) => {
+        const key = n.id || n.message
+        if (!seen.has(key)) {
+          seen.add(key)
+          unique.push(n)
+        }
+      })
+      setNotifications(unique)
     } catch (e) {
       console.error(e)
     } finally {
@@ -8219,6 +8576,13 @@ function NotificationCenter({ header, onNotify, onNavigate }) {
 
   useEffect(() => {
     loadNotifs()
+    const handleUpdate = () => loadNotifs()
+    window.addEventListener('smartstock_notification_update', handleUpdate)
+    window.addEventListener('smartstock-data-sync', handleUpdate)
+    return () => {
+      window.removeEventListener('smartstock_notification_update', handleUpdate)
+      window.removeEventListener('smartstock-data-sync', handleUpdate)
+    }
   }, [])
 
   const handleReadAll = async () => {

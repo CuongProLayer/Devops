@@ -1453,6 +1453,9 @@ export function UpgradedMyOrdersModal({ currentUser, products = [], onClose, onO
 
   useEffect(() => {
     fetchOrders()
+    const handleSync = () => fetchOrders()
+    window.addEventListener('smartstock-data-sync', handleSync)
+    return () => window.removeEventListener('smartstock-data-sync', handleSync)
   }, [])
 
   // 7 Tabs matching Admin Orders 100%
@@ -1466,10 +1469,19 @@ export function UpgradedMyOrdersModal({ currentUser, products = [], onClose, onO
     { key: 'returned', label: 'Đã hoàn' },
   ]
 
-  const filteredOrders = orders.filter((o) => {
-    if (activeTab === 'all') return true
-    return (o.status || 'confirmed').toLowerCase() === activeTab
-  })
+  const matchOrderStatus = (status, tabKey) => {
+    if (tabKey === 'all') return true
+    const s = (status || 'confirmed').toLowerCase()
+    if (tabKey === 'pending') return s === 'pending' || s === 'chờ xử lý' || s === 'chờ xác nhận'
+    if (tabKey === 'confirmed') return s === 'confirmed' || s === 'đã xác nhận'
+    if (tabKey === 'completed') return s === 'completed' || s === 'giao thành công' || s === 'hoàn tất'
+    if (tabKey === 'cancelled') return s === 'cancelled' || s === 'đã hủy'
+    if (tabKey === 'partially_returned') return s === 'partially_returned' || s === 'hoàn một phần'
+    if (tabKey === 'returned') return s === 'returned' || s === 'đã hoàn' || s === 'hoàn tiền'
+    return s === tabKey
+  }
+
+  const filteredOrders = orders.filter((o) => matchOrderStatus(o.status, activeTab))
 
   // Định dạng nhãn và icon phương thức thanh toán
   const formatPaymentMethod = (pm) => {
@@ -1700,7 +1712,7 @@ export function UpgradedMyOrdersModal({ currentUser, products = [], onClose, onO
           {TABS.map((tab) => {
             const count = tab.key === 'all'
               ? orders.length
-              : orders.filter((o) => (o.status || 'confirmed').toLowerCase() === tab.key).length
+              : orders.filter((o) => matchOrderStatus(o.status, tab.key)).length
             const isTabActive = activeTab === tab.key
 
             return (

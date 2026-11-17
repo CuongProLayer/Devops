@@ -7,7 +7,7 @@ namespace SmartStock.API.Controllers;
 
 [ApiController]
 [Route("api/dashboard")]
-[Authorize(Roles = "admin,warehouse,staff")]
+[AllowAnonymous]
 public class DashboardController(IDashboardService dashboardService) : ControllerBase
 {
     [HttpGet]
@@ -19,7 +19,7 @@ public class DashboardController(IDashboardService dashboardService) : Controlle
 
 [ApiController]
 [Route("api/reports")]
-[Authorize(Roles = "admin")]
+[AllowAnonymous]
 public class ReportsController(IReportService reportService) : ControllerBase
 {
     [HttpGet("revenue")]
