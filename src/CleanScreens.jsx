@@ -88,19 +88,6 @@ import {
 import { SellerChatAdminModal } from './SellerChatAdminModal'
 import { StorefrontFooter } from './StorefrontFooter'
 import { WarrantyLookupModal } from './WarrantyLookupModal'
-export {
-  DEAD_UNSPLASH_IDS,
-  getCategoryFallbackImage,
-  getProductImage,
-  getProductImages,
-  getProductSpecs,
-  cleanAddressGlitch,
-  getUserStorageKey,
-  reverseGeocodeVietnam,
-  getUserAddressList,
-  saveUserAddressList,
-  getUserSavedAddress,
-} from './storefrontUtils'
 import {
   DEAD_UNSPLASH_IDS,
   getCategoryFallbackImage,
@@ -2710,7 +2697,7 @@ function SmartAddressInput({ value, onChange, onAddressSelect }) {
 // ----------------------------------------------------
 // CẤU HÌNH MÃ QR MẶC ĐỊNH (NGUYỄN TẤN CƯỜNG - MB BANK)
 // ----------------------------------------------------
-export const DEFAULT_QR_CONFIG = {
+const DEFAULT_QR_CONFIG = {
   bankId: 'MB',
   bankName: 'MB Bank (Quân Đội)',
   accountNo: '0342265138',
@@ -2719,7 +2706,7 @@ export const DEFAULT_QR_CONFIG = {
   customQrUrl: '/my-qr.png',
 }
 
-export function getSmartStockQrConfig() {
+function getSmartStockQrConfig() {
   try {
     const saved = localStorage.getItem('smartstock_qr_config')
     if (saved) {
@@ -3055,7 +3042,7 @@ const CROSS_SELL_ACCESSORIES = [
 // ----------------------------------------------------
 // CHUẨN HÓA HÀM XỬ LÝ ĐẶT HÀNG Ở STOREFRONT (ĐỒNG BỘ 100% VỚI ADMIN)
 // ----------------------------------------------------
-export async function processStorefrontOrder({
+async function processStorefrontOrder({
   orderCode,
   customerName,
   customerPhone,
@@ -6143,7 +6130,7 @@ function CleanDashboard({ title, description, onNavigate }) {
   )
 }
 
-export function exportToCsv(filename, headers, rows) {
+function exportToCsv(filename, headers, rows) {
   const sanitize = (val) => {
     if (val == null) return '""'
     const str = String(val).replace(/<[^>]*>?/gm, '').replace(/"/g, '""')
@@ -6929,8 +6916,14 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
       return (
         <AdminProductDetail
           product={selectedProduct}
+          categories={categories}
+          suppliers={suppliers}
           onBack={() => setSelectedProduct(null)}
           onDelete={() => handleDeleteProduct(selectedProduct.id)}
+          onUpdate={async (updated) => {
+            setSelectedProduct(updated)
+            await loadModuleData()
+          }}
           onNotify={notify}
         />
       )
@@ -8522,44 +8515,457 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
 // ----------------------------------------------------
 // PRODUCT DETAIL VIEW & MODALS
 // ----------------------------------------------------
-function AdminProductDetail({ product, onBack, onDelete, onNotify }) {
+function AdminProductDetail({ product, categories = [], suppliers = [], onBack, onDelete, onUpdate, onNotify }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const fileInputRef = useRef(null)
+
+  const [editForm, setEditForm] = useState(() => ({
+    name: product?.name || '',
+    price: product?.price || 0,
+    costPrice: product?.costPrice || 0,
+    productCode: product?.productCode || product?.sku || '',
+    categoryId: product?.categoryId || (categories[0]?.id ?? ''),
+    supplierId: product?.supplierId || (suppliers[0]?.id ?? ''),
+    quantity: product?.quantity != null ? product.quantity : 0,
+    description: product?.description || '',
+    image: product?.image || product?.imageUrl || getProductImage(product) || '',
+  }))
+
+  useEffect(() => {
+    setEditForm({
+      name: product?.name || '',
+      price: product?.price || 0,
+      costPrice: product?.costPrice || 0,
+      productCode: product?.productCode || product?.sku || '',
+      categoryId: product?.categoryId || (categories[0]?.id ?? ''),
+      supplierId: product?.supplierId || (suppliers[0]?.id ?? ''),
+      quantity: product?.quantity != null ? product.quantity : 0,
+      description: product?.description || '',
+      image: product?.image || product?.imageUrl || getProductImage(product) || '',
+    })
+  }, [product, categories, suppliers])
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn tệp hình ảnh (.jpg, .png, .webp, .svg)!')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (uploadEvent) => {
+      const base64Data = uploadEvent.target?.result
+      if (base64Data) {
+        setEditForm((prev) => ({ ...prev, image: base64Data }))
+        onNotify?.('📷 Đã tải ảnh xem trước thành công! Nhấn "Lưu vào Database" để lưu lại.')
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleSave = async (e) => {
+    e?.preventDefault()
+    if (!editForm.name.trim()) {
+      alert('Vui lòng nhập tên sản phẩm!')
+      return
+    }
+
+    try {
+      setSaving(true)
+      const payload = {
+        name: editForm.name.trim(),
+        price: Number(editForm.price) || 0,
+        costPrice: Number(editForm.costPrice) || 0,
+        productCode: editForm.productCode.trim(),
+        categoryId: editForm.categoryId ? Number(editForm.categoryId) : undefined,
+        supplierId: editForm.supplierId ? Number(editForm.supplierId) : undefined,
+        quantity: Number(editForm.quantity) || 0,
+        description: editForm.description.trim(),
+        image: editForm.image || undefined,
+        imageUrl: editForm.image || undefined,
+      }
+
+      const res = await api.updateProduct(product.id, payload)
+      const updatedCategory = categories.find((c) => c.id === Number(editForm.categoryId))
+      const updatedSupplier = suppliers.find((s) => s.id === Number(editForm.supplierId))
+
+      const mergedProduct = {
+        ...product,
+        ...res,
+        categoryName: updatedCategory?.name || product.categoryName,
+        supplierName: updatedSupplier?.name || product.supplierName,
+        image: editForm.image || res?.image || product.image,
+      }
+
+      // Phát sự kiện đồng bộ tức thì cho Storefront
+      try {
+        window.dispatchEvent(new CustomEvent('smartstock-data-sync', {
+          detail: { type: 'product_updated', product: mergedProduct }
+        }))
+      } catch {}
+
+      onNotify?.('💾 Đã lưu thay đổi sản phẩm vào Database thành công!')
+      setIsEditing(false)
+      if (onUpdate) {
+        await onUpdate(mergedProduct)
+      }
+    } catch (err) {
+      console.error('Update product error:', err)
+      alert(err.message || 'Lỗi khi cập nhật sản phẩm vào Database')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const currentDisplayImage = editForm.image || product?.image || product?.imageUrl || getProductImage(product)
+
   return (
     <>
       <button className="back-admin" onClick={onBack}>
         &larr; Quay lại danh sách sản phẩm
       </button>
-      <section className="product-admin-detail">
-        <div className={`admin-detail-visual ${product.color || 'midnight'}`}>
-          <Package size={100} />
+
+      <section className="product-admin-detail" style={{ background: '#fff', borderRadius: '16px', padding: '28px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', display: 'grid', gridTemplateColumns: '360px 1fr', gap: '32px' }}>
+        {/* Khung ảnh sản phẩm & Upload ảnh */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: '340px',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              background: '#f8fafc',
+              border: '2px dashed #cbd5e1',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {currentDisplayImage ? (
+              <img
+                src={currentDisplayImage}
+                alt={product?.name || 'Sản phẩm'}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '12px' }}
+                onError={(e) => {
+                  e.target.onerror = null
+                  e.target.src = getCategoryFallbackImage(product)
+                }}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                <Package size={80} />
+                <p style={{ fontSize: '13px', marginTop: '8px' }}>Chưa có hình ảnh</p>
+              </div>
+            )}
+
+            {/* Overlay nút Upload ảnh trực tiếp */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '12px',
+                left: '12px',
+                right: '12px',
+                display: 'flex',
+                gap: '8px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '9px 12px',
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  backdropFilter: 'blur(6px)',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
+                }}
+              >
+                <Upload size={14} /> 📷 Tải ảnh lên / Đổi ảnh
+              </button>
+            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleImageFileChange}
+            />
+          </div>
+
+          {/* Ô nhập link ảnh URL dự phòng */}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+              Hoặc dán link URL hình ảnh:
+            </label>
+            <input
+              type="text"
+              value={editForm.image.startsWith('data:') ? '(Ảnh tải từ máy tính Base64)' : editForm.image}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, image: e.target.value }))}
+              placeholder="https://images.unsplash.com/..."
+              disabled={editForm.image.startsWith('data:')}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: '12px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                outline: 'none',
+                background: editForm.image.startsWith('data:') ? '#f1f5f9' : '#fff',
+              }}
+            />
+            {editForm.image.startsWith('data:') && (
+              <button
+                type="button"
+                onClick={() => setEditForm((prev) => ({ ...prev, image: '' }))}
+                style={{
+                  marginTop: '4px',
+                  fontSize: '11px',
+                  color: '#dc2626',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  textDecoration: 'underline',
+                }}
+              >
+                Gỡ ảnh vừa tải lên để nhập link URL
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Nội dung thông tin hoặc Form chỉnh sửa */}
         <div className="admin-detail-copy">
-          <div className="eyebrow">PRODUCT SKU • {product.productCode}</div>
-          <h1>{product.name}</h1>
-          <div className="detail-price-admin">{formatVND(product.price)}</div>
-          <div className="detail-field-grid">
-            <div>
-              <span>MÃ SKU</span>
-              <strong>{product.productCode}</strong>
-            </div>
-            <div>
-              <span>DANH MỤC</span>
-              <strong>{product.categoryName || 'Mặc định'}</strong>
-            </div>
-            <div>
-              <span>NHÀ CUNG CẤP</span>
-              <strong>{product.supplierName || 'Chính hãng'}</strong>
-            </div>
-            <div>
-              <span>TỒN KHO HIỆN TẠI</span>
-              <strong>{product.quantity} {product.unit || 'cái'}</strong>
-            </div>
-          </div>
-          <p>{product.description || 'Sản phẩm chính hãng, phân phối qua hệ thống SmartStock.'}</p>
-          <div className="detail-action-row">
-            <button className="button danger" onClick={onDelete}>
-              <Trash2 size={16} /> Xóa sản phẩm
-            </button>
-          </div>
+          {isEditing ? (
+            <form onSubmit={handleSave}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  ✏️ Chỉnh sửa thông tin sản phẩm
+                </div>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Mã SKU: <strong>{product?.productCode}</strong></span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Tên sản phẩm: <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Giá bán niêm yết (VNĐ):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editForm.price}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Giá vốn nhập kho (VNĐ):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editForm.costPrice}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, costPrice: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Danh mục:
+                  </label>
+                  <select
+                    value={editForm.categoryId}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, categoryId: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Nhà cung cấp:
+                  </label>
+                  <select
+                    value={editForm.supplierId}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, supplierId: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                  >
+                    {suppliers.length > 0 ? (
+                      suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))
+                    ) : (
+                      <option value="">(Chính hãng / Mặc định)</option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Số lượng tồn kho:
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editForm.quantity}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Mã SKU:
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.productCode}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, productCode: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                  />
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Mô tả sản phẩm:
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', lineHeight: 1.5 }}
+                  />
+                </div>
+              </div>
+
+              {/* Hàng nút bấm Lưu / Hủy */}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '12px 24px',
+                    borderRadius: '10px',
+                    background: '#ea580c',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '14px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)',
+                  }}
+                >
+                  <Check size={16} /> {saving ? 'Đang lưu vào Database...' : '💾 Lưu vào Database'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  style={{
+                    padding: '12px 20px',
+                    borderRadius: '10px',
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    fontWeight: 700,
+                    fontSize: '14px',
+                    border: '1px solid #cbd5e1',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Hủy bỏ
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className="eyebrow">PRODUCT SKU • {product?.productCode}</div>
+              <h1 style={{ margin: '8px 0', fontSize: '26px', color: '#0f172a' }}>{product?.name}</h1>
+              <div className="detail-price-admin" style={{ fontSize: '24px', fontWeight: 800, color: '#ea580c', marginBottom: '20px' }}>
+                {formatVND(product?.price || 0)}
+              </div>
+              <div className="detail-field-grid">
+                <div>
+                  <span>MÃ SKU</span>
+                  <strong>{product?.productCode}</strong>
+                </div>
+                <div>
+                  <span>DANH MỤC</span>
+                  <strong>{product?.categoryName || 'Mặc định'}</strong>
+                </div>
+                <div>
+                  <span>NHÀ CUNG CẤP</span>
+                  <strong>{product?.supplierName || 'Chính hãng'}</strong>
+                </div>
+                <div>
+                  <span>TỒN KHO HIỆN TẠI</span>
+                  <strong>{product?.quantity} {product?.unit || 'cái'}</strong>
+                </div>
+              </div>
+              <p style={{ marginTop: '16px', lineHeight: 1.6, color: '#475569' }}>
+                {product?.description || 'Sản phẩm chính hãng, phân phối qua hệ thống SmartStock.'}
+              </p>
+
+              {/* Nút Sửa & Xóa sản phẩm */}
+              <div className="detail-action-row" style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 20px',
+                    borderRadius: '10px',
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '14px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)',
+                  }}
+                >
+                  <Edit size={16} /> ✏️ Sửa sản phẩm
+                </button>
+                <button className="button danger" onClick={onDelete}>
+                  <Trash2 size={16} /> Xóa sản phẩm
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </section>
     </>

@@ -11,6 +11,18 @@ using SmartStock.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Cấu hình Kestrel & Form upload giới hạn 50MB (tránh lỗi 413 Payload Too Large khi upload ảnh Base64)
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 52428800; // 50MB
+});
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.ValueLengthLimit = 52428800;
+    options.MultipartBodyLengthLimit = 52428800;
+    options.MemoryBufferThreshold = 52428800;
+});
+
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
