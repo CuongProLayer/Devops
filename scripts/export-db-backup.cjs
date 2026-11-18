@@ -45,10 +45,10 @@ async function exportBackup() {
       const status = (p.status || 'active').replace(/'/g, "''");
 
       sql += `IF EXISTS (SELECT 1 FROM Products WHERE Id = ${p.id}) BEGIN\n`;
-      sql += `    UPDATE Products SET Name = N'${name}', ProductCode = '${code}', Price = ${price}, CostPrice = ${cost}, Quantity = ${qty}, CategoryId = ${catId}, Status = '${status}', Image = '${img}', UpdatedAt = GETUTCDATE() WHERE Id = ${p.id};\n`;
+      sql += `    UPDATE Products SET Name = N'${name}', ProductCode = '${code}', Price = ${price}, CostPrice = ${cost}, Quantity = ${qty}, CategoryId = ${catId}, Status = '${status}', Image = '${img}', IsDeleted = 0, UpdatedAt = GETUTCDATE() WHERE Id = ${p.id};\n`;
       sql += `END ELSE BEGIN\n`;
       sql += `    SET IDENTITY_INSERT Products ON;\n`;
-      sql += `    INSERT INTO Products (Id, ProductCode, Name, Description, Price, CostPrice, Quantity, MinStock, Unit, CategoryId, Status, Image, CreatedAt) VALUES (${p.id}, '${code}', N'${name}', N'${desc}', ${price}, ${cost}, ${qty}, 5, N'cái', ${catId}, '${status}', '${img}', GETUTCDATE());\n`;
+      sql += `    INSERT INTO Products (Id, ProductCode, Name, Description, Price, CostPrice, Quantity, MinStock, Unit, CategoryId, Status, Image, IsDeleted, CreatedAt, UpdatedAt) VALUES (${p.id}, '${code}', N'${name}', N'${desc}', ${price}, ${cost}, ${qty}, 5, N'cái', ${catId}, '${status}', '${img}', 0, GETUTCDATE(), GETUTCDATE());\n`;
       sql += `    SET IDENTITY_INSERT Products OFF;\n`;
       sql += `END\n`;
     }
