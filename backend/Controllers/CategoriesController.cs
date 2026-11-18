@@ -71,18 +71,21 @@ public class CategoriesController(AppDbContext db, IWebHostEnvironment environme
         return CreatedAtAction(nameof(GetById), new { id = cat.Id }, new CategoryDto(cat.Id, cat.Name, cat.Description, cat.Icon, cat.ImageUrl, cat.ImageContentType, cat.IsActive, 0));
     }
 
-    [HttpPut("{id}")]
+    [HttpPut("{id:int}")]
     [Authorize(Roles = "admin,warehouse")]
     public async Task<IActionResult> Update(int id, UpdateCategoryRequest request)
     {
         var cat = await db.Categories.FindAsync(id);
-        if (cat == null) return NotFound();
-        cat.Name = request.Name;
+        if (cat == null) return NotFound(new { message = "Không tìm thấy danh mục cần cập nhật." });
+        if (!string.IsNullOrWhiteSpace(request.Name))
+            cat.Name = request.Name.Trim();
         cat.Description = request.Description;
-        cat.Icon = request.Icon;
+        if (!string.IsNullOrWhiteSpace(request.Icon))
+            cat.Icon = request.Icon;
         cat.IsActive = request.IsActive;
         await db.SaveChangesAsync();
-        return Ok(new CategoryDto(cat.Id, cat.Name, cat.Description, cat.Icon, cat.ImageUrl, cat.ImageContentType, cat.IsActive, 0));
+        var productCount = await db.Products.CountAsync(p => p.CategoryId == id && p.Status == "active");
+        return Ok(new CategoryDto(cat.Id, cat.Name, cat.Description, cat.Icon, cat.ImageUrl, cat.ImageContentType, cat.IsActive, productCount));
     }
 
     [HttpPost("{id:int}/image")]
@@ -248,14 +251,51 @@ public class CategoriesController(AppDbContext db, IWebHostEnvironment environme
             || content.Contains("<svg", StringComparison.OrdinalIgnoreCase);
     }
 
-    [HttpDelete("{id}")]
-    [Authorize(Roles = "admin")]
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = "admin,warehouse")]
     public async Task<IActionResult> Delete(int id)
     {
         var cat = await db.Categories.FindAsync(id);
-        if (cat == null) return NotFound();
-        cat.IsActive = false;
+        if (cat == null) return NotFound(new { message = "Không tìm thấy danh mục cần xóa." });
+
+        // Tự động chuyển các sản phẩm thuộc danh mục này sang danh mục "Chưa phân loại" để tránh lỗi Foreign Key
+        Category? defaultCat = null;
+        var productsToMove = await db.Products.Where(p => p.CategoryId == id).ToListAsync();
+        if (productsToMove.Count > 0)
+        {
+            defaultCat = await db.Categories.FirstOrDefaultAsync(c => (c.Name == "Chưa phân loại" || c.Name == "Khác") && c.Id != id);
+            if (defaultCat == null)
+            {
+                defaultCat = new Category
+                {
+                    Name = "Chưa phân loại",
+                    Description = "Sản phẩm chưa được phân loại vào danh mục cụ thể",
+                    Icon = "📦",
+                    IsActive = true
+                };
+                db.Categories.Add(defaultCat);
+                await db.SaveChangesAsync();
+            }
+
+            foreach (var p in productsToMove)
+            {
+                p.CategoryId = defaultCat.Id;
+                p.UpdatedAt = DateTime.UtcNow;
+            }
+            await db.SaveChangesAsync();
+        }
+
+        var oldImageUrl = cat.ImageUrl;
+        db.Categories.Remove(cat);
         await db.SaveChangesAsync();
-        return NoContent();
+        DeleteStoredImage(oldImageUrl);
+
+        return Ok(new
+        {
+            message = "Đã xóa danh mục thành công!",
+            deletedId = id,
+            movedProductCount = productsToMove.Count,
+            fallbackCategoryId = defaultCat?.Id
+        });
     }
 }

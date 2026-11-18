@@ -765,6 +765,9 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
 
   useEffect(() => {
     loadData()
+    const handleSync = () => loadData()
+    window.addEventListener('smartstock-data-sync', handleSync)
+    return () => window.removeEventListener('smartstock-data-sync', handleSync)
   }, [])
 
   const notify = (msg) => {
@@ -6170,6 +6173,7 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
   const [stockFilter, setStockFilter] = useState('all')
   const [showAddProductModal, setShowAddProductModal] = useState(false)
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false)
+  const [editingCategory, setEditingCategory] = useState(null)
 
   // Orders State
   const [orders, setOrders] = useState([])
@@ -6441,6 +6445,56 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
       await loadModuleData()
     } catch (err) {
       alert(err.message || 'Không thể gỡ ảnh danh mục')
+    }
+  }
+
+  const handleDeleteCategory = async (cat) => {
+    const pCount = cat.productCount ?? 0
+    const confirmMsg = pCount > 0
+      ? `⚠️ CẢNH BÁO: Danh mục "${cat.name}" đang có ${pCount} sản phẩm liên kết.\n\nNếu xóa, các sản phẩm này sẽ được tự động chuyển về mục "Chưa phân loại" để không làm mất sản phẩm trong kho.\n\nBạn có chắc chắn muốn xóa vĩnh viễn danh mục "${cat.name}" không?`
+      : `Bạn có chắc chắn muốn xóa vĩnh viễn danh mục "${cat.name}" khỏi hệ thống không?`
+
+    if (!window.confirm(confirmMsg)) return
+
+    try {
+      await api.deleteCategory(cat.id)
+      notify(`🗑️ Đã xóa danh mục "${cat.name}" thành công!`)
+      setCategories((prev) => prev.filter((item) => item.id !== cat.id))
+
+      try {
+        window.dispatchEvent(new CustomEvent('smartstock-data-sync', {
+          detail: { type: 'category_deleted', categoryId: cat.id }
+        }))
+      } catch {}
+
+      await loadModuleData()
+    } catch (err) {
+      console.error('Delete category error:', err)
+      alert(err.message || 'Lỗi khi xóa danh mục khỏi Database')
+    }
+  }
+
+  const handleUpdateCategory = async (catData) => {
+    try {
+      await api.updateCategory(catData.id, {
+        name: catData.name,
+        description: catData.description,
+        icon: catData.icon,
+        isActive: true,
+      })
+      notify(`✏️ Đã cập nhật danh mục "${catData.name}" thành công!`)
+      setEditingCategory(null)
+
+      try {
+        window.dispatchEvent(new CustomEvent('smartstock-data-sync', {
+          detail: { type: 'category_updated', categoryId: catData.id }
+        }))
+      } catch {}
+
+      await loadModuleData()
+    } catch (err) {
+      console.error('Update category error:', err)
+      alert(err.message || 'Lỗi khi cập nhật danh mục')
     }
   }
 
@@ -7022,7 +7076,64 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
         {header}
         <div className="admin-card-grid">
           {categories.map((c, idx) => (
-            <div className="admin-info-card" key={c.id}>
+            <div className="admin-info-card" key={c.id} style={{ position: 'relative' }}>
+              {/* Nút Sửa & Xóa danh mục ở góc trên bên phải */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '12px',
+                  right: '12px',
+                  display: 'flex',
+                  gap: '6px',
+                  zIndex: 3,
+                }}
+              >
+                <button
+                  type="button"
+                  title={`Sửa tên & mô tả danh mục: ${c.name}`}
+                  aria-label={`Sửa danh mục ${c.name}`}
+                  onClick={() => setEditingCategory(c)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '8px',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    color: '#0284c7',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Edit size={14} />
+                </button>
+                <button
+                  type="button"
+                  title={`Xóa vĩnh viễn danh mục: ${c.name}`}
+                  aria-label={`Xóa danh mục ${c.name}`}
+                  onClick={() => handleDeleteCategory(c)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '8px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#dc2626',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(220, 38, 38, 0.15)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+
               <div className={`category-image-frame ${c.imageUrl ? 'has-image' : ''}`}>
                 {c.imageUrl ? (
                   <img src={c.imageUrl} alt={`Ảnh ${c.name}`} />
@@ -7056,29 +7167,54 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
                 <Package size={14} color="#15803d" />
                 <span>📦 Quản lý SP ({c.productCount ?? 0} sản phẩm)</span>
               </button>
-              <label className="category-image-action">
-                <Upload size={14} /> {c.imageUrl ? 'Thay ảnh' : 'Tải ảnh sản phẩm'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  aria-label={`${c.imageUrl ? 'Thay ảnh' : 'Tải ảnh'} cho ${c.name}`}
-                  onChange={(event) => {
-                    const imageFile = event.target.files?.[0]
-                    if (imageFile) handleUploadCategoryImage(c, imageFile)
-                    event.target.value = ''
-                  }}
-                />
-              </label>
-              {c.imageUrl && (
+
+              <div style={{ display: 'flex', gap: '6px', width: '100%', marginTop: '6px', flexWrap: 'wrap' }}>
+                <label className="category-image-action" style={{ flex: 1, margin: 0, minWidth: '95px' }}>
+                  <Upload size={14} /> {c.imageUrl ? 'Thay ảnh' : 'Tải ảnh'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    aria-label={`${c.imageUrl ? 'Thay ảnh' : 'Tải ảnh'} cho ${c.name}`}
+                    onChange={(event) => {
+                      const imageFile = event.target.files?.[0]
+                      if (imageFile) handleUploadCategoryImage(c, imageFile)
+                      event.target.value = ''
+                    }}
+                  />
+                </label>
+                {c.imageUrl && (
+                  <button
+                    className="category-image-remove"
+                    title="Gỡ ảnh và dùng icon dự phòng"
+                    aria-label={`Gỡ ảnh ${c.name}`}
+                    onClick={() => handleDeleteCategoryImage(c)}
+                    style={{ margin: 0 }}
+                  >
+                    <X size={14} /> Gỡ ảnh
+                  </button>
+                )}
                 <button
-                  className="category-image-remove"
-                  title="Gỡ ảnh và dùng icon dự phòng"
-                  aria-label={`Gỡ ảnh ${c.name}`}
-                  onClick={() => handleDeleteCategoryImage(c)}
+                  type="button"
+                  title={`Xóa danh mục ${c.name}`}
+                  aria-label={`Xóa danh mục ${c.name}`}
+                  onClick={() => handleDeleteCategory(c)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    background: '#fff1f2',
+                    border: '1px solid #fecdd3',
+                    color: '#e11d48',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
                 >
-                  <X size={14} /> Gỡ ảnh
+                  <Trash2 size={13} /> Xóa
                 </button>
-              )}
+              </div>
             </div>
           ))}
         </div>
@@ -7087,6 +7223,13 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
           <AddCategoryModal
             onClose={() => setShowAddCategoryModal(false)}
             onSave={handleCreateCategory}
+          />
+        )}
+        {editingCategory && (
+          <EditCategoryModal
+            category={editingCategory}
+            onClose={() => setEditingCategory(null)}
+            onSave={handleUpdateCategory}
           />
         )}
         {selectedCategoryForProducts && (
@@ -10091,6 +10234,77 @@ function AddCategoryModal({ onClose, onSave }) {
   )
 }
 
+function EditCategoryModal({ category, onClose, onSave }) {
+  const [name, setName] = useState(category?.name || '')
+  const [description, setDescription] = useState(category?.description || '')
+  const [icon, setIcon] = useState(category?.icon || '📦')
+  const [saving, setSaving] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      await onSave({
+        id: category.id,
+        name: name.trim(),
+        description: description.trim(),
+        icon: icon.trim() || '📦',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box">
+        <div className="modal-head">
+          <h3>✏️ Chỉnh sửa danh mục: {category?.name}</h3>
+          <button type="button" className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div className="form-field">
+              <label>Tên danh mục *</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="VD: Điện thoại, Laptop, Phụ kiện..."
+                required
+              />
+            </div>
+            <div className="form-field">
+              <label>Icon hiển thị</label>
+              <input
+                value={icon}
+                onChange={(e) => setIcon(e.target.value)}
+                placeholder="VD: 📱, 💻, 🎧, 🔌, 📦..."
+                maxLength={5}
+              />
+            </div>
+            <div className="form-field">
+              <label>Mô tả danh mục</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Mô tả về nhóm sản phẩm này..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="button ghost" onClick={onClose}>Hủy</button>
+            <button type="submit" className="button primary" disabled={saving || !name.trim()}>
+              {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ----------------------------------------------------
 // NOTIFICATION CENTER & SYSTEM HEALTH
 // ----------------------------------------------------
@@ -10530,6 +10744,9 @@ function CleanPurchaseOrders({ header }) {
 
   useEffect(() => {
     loadData()
+    const handleSync = () => loadData()
+    window.addEventListener('smartstock-data-sync', handleSync)
+    return () => window.removeEventListener('smartstock-data-sync', handleSync)
   }, [])
 
   const handleCreate = async (data) => {
