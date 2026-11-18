@@ -657,9 +657,7 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
         api.getOrders(),
         api.getPromotions(),
       ])
-      const pItems = (prodRes?.items || prodRes || []).filter(
-        (it) => it.id !== 6 && it.productCode !== 'PRD21079'
-      )
+      const pItems = prodRes?.items || prodRes || []
       const cItems = catRes || []
       const oItems = ordRes?.items || ordRes || []
       const prItems = promoRes || []
@@ -864,11 +862,19 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
       }
 
       if (selectedCat !== 'all') {
+        const catId = Number(selectedCat)
         const catName = (item.categoryName || '').toLowerCase()
-        if (selectedCat === 'phone' && !(catName.includes('thoại') || catName.includes('phone'))) return false
-        if (selectedCat === 'laptop' && !(catName.includes('laptop') || catName.includes('macbook') || catName.includes('máy tính xách tay'))) return false
-        if (selectedCat === 'accessory' && !(catName.includes('kiện') || catName.includes('tai nghe') || catName.includes('sạc') || catName.includes('chuột'))) return false
-        if (selectedCat === 'tablet' && !(catName.includes('tablet') || catName.includes('bảng') || catName.includes('ipad'))) return false
+        if (!isNaN(catId) && catId > 0) {
+          if (item.categoryId !== catId) return false
+        } else if (selectedCat === 'phone') {
+          if (item.categoryId !== 1 && !(catName.includes('thoại') || catName.includes('phone'))) return false
+        } else if (selectedCat === 'laptop') {
+          if (item.categoryId !== 2 && !(catName.includes('laptop') || catName.includes('macbook') || catName.includes('máy tính xách tay'))) return false
+        } else if (selectedCat === 'accessory') {
+          if (![4, 8, 9].includes(item.categoryId) && !(catName.includes('kiện') || catName.includes('tai nghe') || catName.includes('sạc') || catName.includes('chuột'))) return false
+        } else if (selectedCat === 'tablet') {
+          if (item.categoryId !== 3 && !(catName.includes('tablet') || catName.includes('bảng') || catName.includes('ipad'))) return false
+        }
       }
 
       if (onlyInStock) {
@@ -1240,36 +1246,23 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
                 className={`cat-pill ${selectedCat === 'all' ? 'active' : ''}`}
                 onClick={() => { setSelectedCat('all'); setPage('home') }}
               >
-                <Package size={14} /> Tất cả sản phẩm
+                <Package size={14} /> Tất cả ({products.length})
               </button>
-              <button
-                type="button"
-                className={`cat-pill ${selectedCat === 'phone' ? 'active' : ''}`}
-                onClick={() => { setSelectedCat('phone'); setPage('home') }}
-              >
-                <Smartphone size={14} /> Điện thoại
-              </button>
-              <button
-                type="button"
-                className={`cat-pill ${selectedCat === 'laptop' ? 'active' : ''}`}
-                onClick={() => { setSelectedCat('laptop'); setPage('home') }}
-              >
-                <Laptop size={14} /> Laptop &amp; Mac
-              </button>
-              <button
-                type="button"
-                className={`cat-pill ${selectedCat === 'accessory' ? 'active' : ''}`}
-                onClick={() => { setSelectedCat('accessory'); setPage('home') }}
-              >
-                <Headphones size={14} /> Phụ kiện cao cấp
-              </button>
-              <button
-                type="button"
-                className={`cat-pill ${selectedCat === 'tablet' ? 'active' : ''}`}
-                onClick={() => { setSelectedCat('tablet'); setPage('home') }}
-              >
-                <Tablet size={14} /> Máy tính bảng
-              </button>
+              {categories.map((c) => {
+                const pCount = products.filter((p) => p.categoryId === c.id || (p.categoryName || '').toLowerCase() === c.name.toLowerCase()).length
+                const isSelected = selectedCat === c.id || selectedCat === String(c.id) || (selectedCat === 'phone' && (c.id === 1 || c.name.toLowerCase().includes('thoại'))) || (selectedCat === 'laptop' && (c.id === 2 || c.name.toLowerCase().includes('laptop'))) || (selectedCat === 'tablet' && (c.id === 3 || c.name.toLowerCase().includes('bảng'))) || (selectedCat === 'accessory' && (c.id === 4 || c.name.toLowerCase().includes('kiện')))
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`cat-pill ${isSelected ? 'active' : ''}`}
+                    onClick={() => { setSelectedCat(c.id); setPage('home') }}
+                  >
+                    <span>{c.icon || '🏷️'}</span>
+                    <span>{c.name} ({pCount})</span>
+                  </button>
+                )
+              })}
             </div>
 
             {/* Toggle chỉ hiện còn hàng & Dropdown sắp xếp */}
