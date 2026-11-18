@@ -1227,7 +1227,7 @@ export function InvoiceModal({ order, onClose }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="brand-mark" style={{ background: '#ffffff', width: '32px', height: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', padding: '2px', border: '1px solid rgba(0,0,0,0.08)' }}>
-                <img src="/logo.png?v=3" alt="SmartStock UNG Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <img src="/logo.png?v=4" alt="SmartStock UNG Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </span>
               <div>
                 <span style={{ fontSize: '18px', fontWeight: 900, color: '#1E3A2F', letterSpacing: '-0.3px' }}>SMARTSTOCK</span>

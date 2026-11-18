@@ -122,7 +122,10 @@ try
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
     await DbSeeder.SeedUsersAsync(db); // Tạo tài khoản mẫu nếu DB trống
-    await DbSeeder.SeedProductsAsync(db); // Khởi tạo 20+ sản phẩm công nghệ thực tế phong phú
+    if (!await db.Products.AnyAsync())
+    {
+        await DbSeeder.SeedProductsAsync(db); // Chỉ khởi tạo nếu DB chưa có sản phẩm
+    }
 }
 catch (Exception ex)
 {

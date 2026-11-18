@@ -284,7 +284,11 @@ public static class DbSeeder
                 p.CategoryId = item.CatId;
                 p.Unit = item.Unit;
                 p.Status = "active";
-                p.Image = item.Img;
+                // Tuyệt đối không ghi đè ảnh nếu đã có ảnh tùy chỉnh
+                if (string.IsNullOrWhiteSpace(p.Image))
+                {
+                    p.Image = item.Img;
+                }
                 if (p.Quantity <= 0 && item.Qty > 0) p.Quantity = item.Qty;
                 p.UpdatedAt = DateTime.UtcNow;
             }

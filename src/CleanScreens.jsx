@@ -182,7 +182,7 @@ export function CleanLogin({ onLogin }) {
       <div className="login-art">
         <div className="login-art-top">
           <div className="brand-mark">
-            <img src="/logo.png?v=3" alt="SmartStock UNG Logo" />
+            <img src="/logo.png?v=4" alt="SmartStock UNG Logo" />
           </div>
           <div className="brand-name">smart<span>stock</span></div>
         </div>
@@ -227,7 +227,7 @@ export function CleanLogin({ onLogin }) {
         <div className="login-form">
           <div className="mobile-brand">
             <div className="brand-mark">
-              <img src="/logo.png?v=3" alt="SmartStock UNG Logo" />
+              <img src="/logo.png?v=4" alt="SmartStock UNG Logo" />
             </div>
             <div className="brand-name">smart<span>stock</span></div>
           </div>
@@ -451,7 +451,7 @@ function CleanRecovery({ screen, onBack }) {
       <div className="login-art">
         <div className="login-art-top">
           <div className="brand-mark">
-            <img src="/logo.png?v=3" alt="SmartStock UNG Logo" />
+            <img src="/logo.png?v=4" alt="SmartStock UNG Logo" />
           </div>
           <div className="brand-name">smart<span>stock</span></div>
         </div>
@@ -963,7 +963,7 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
               }}
             >
               <img
-                src="/logo.png?v=3"
+                src="/logo.png?v=4"
                 alt="SmartStock UNG Logo"
                 style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
               />
@@ -5461,7 +5461,7 @@ export function CleanAdmin({ role, onLogout, currentUser, onSwitchRole, initialP
       <aside className="sidebar clean-admin-sidebar">
         <div className="brand-row" style={{ flexShrink: 0 }}>
           <div className="brand-mark" style={{ background: '#ffffff', padding: '2px', border: '1px solid rgba(0,0,0,0.08)' }}>
-            <img src="/logo.png?v=3" alt="SmartStock UNG Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <img src="/logo.png?v=4" alt="SmartStock UNG Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div>
             <div className="brand-name">smart<span>stock</span></div>
