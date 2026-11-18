@@ -2,7 +2,9 @@ node_modules/
 dist/
 dist-ssr/
 *.local
-backend/uploads/
+backend/uploads/*
+!backend/uploads/categories/
+!backend/uploads/categories/*
 
 # .NET build outputs
 backend/bin/
