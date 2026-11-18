@@ -41,6 +41,8 @@ import {
   Calendar,
   Edit2,
   Search,
+  Truck,
+  ArrowLeft,
 } from 'lucide-react'
 import { api, formatVND, formatDate } from './api'
 import { getProductImage, getProductImages, getCategoryFallbackImage, getProductSpecs, reverseGeocodeVietnam, getUserStorageKey, getUserAddressList, saveUserAddressList, getUserSavedAddress } from './CleanScreens'
@@ -3201,13 +3203,111 @@ const POPULAR_PROFILE_LANDMARKS = [
   },
 ]
 
-export function CustomerProfileModal({ currentUser, orders = [], onClose, onNotify, userTierInfo, onLogout, initialTab = 'profile' }) {
+// ====================================================
+// CHUẨN HÓA TRẠNG THÁI ĐƠN HÀNG & TIẾN TRÌNH VẬN CHUYỂN
+// ====================================================
+export function getOrderStatusMeta(rawStatus) {
+  const s = (rawStatus || '').toString().toLowerCase().trim()
+  if (
+    s.includes('completed') ||
+    s.includes('hoàn tất') ||
+    s.includes('giao thành công') ||
+    s.includes('thành công') ||
+    s.includes('delivered')
+  ) {
+    return {
+      key: 'completed',
+      label: 'Giao hàng thành công',
+      color: '#15803d',
+      bg: '#dcfce7',
+      border: '#bbf7d0',
+      step: 4,
+    }
+  }
+  if (
+    s.includes('shipping') ||
+    s.includes('đang giao') ||
+    s.includes('vận chuyển') ||
+    s.includes('đang vận chuyển')
+  ) {
+    return {
+      key: 'shipping',
+      label: 'Đang vận chuyển',
+      color: '#0284c7',
+      bg: '#e0f2fe',
+      border: '#bae6fd',
+      step: 3,
+    }
+  }
+  if (
+    s.includes('processing') ||
+    s.includes('đóng gói') ||
+    s.includes('xử lý') ||
+    s.includes('đang xử lý') ||
+    s.includes('confirmed') ||
+    s.includes('xác nhận')
+  ) {
+    return {
+      key: 'processing',
+      label: 'Đang xử lý / Đóng gói',
+      color: '#7c3aed',
+      bg: '#f3e8ff',
+      border: '#e9d5ff',
+      step: 2,
+    }
+  }
+  if (
+    s.includes('cancelled') ||
+    s.includes('hủy') ||
+    s.includes('đã hủy') ||
+    s.includes('canceled')
+  ) {
+    return {
+      key: 'cancelled',
+      label: 'Đã hủy',
+      color: '#b91c1c',
+      bg: '#fee2e2',
+      border: '#fecaca',
+      step: 0,
+    }
+  }
+  return {
+    key: 'pending',
+    label: 'Chờ xác nhận',
+    color: '#ea580c',
+    bg: '#ffedd5',
+    border: '#fed7aa',
+    step: 1,
+  }
+}
+
+export function CustomerProfileModal({
+  currentUser,
+  orders = [],
+  onClose,
+  onNotify,
+  userTierInfo,
+  onLogout,
+  initialTab = 'profile',
+  onAddToCart,
+  onRefreshOrders,
+}) {
   const [activeTab, setActiveTab] = useState(initialTab) // 'profile' | 'orders' | 'address' | 'warranty' | 'vouchers' | 'loyalty' | 'notifications'
   const userStorageKey = (currentUser?.email || currentUser?.username || (currentUser?.userId ? `user_${currentUser.userId}` : '') || 'guest').toLowerCase().trim()
   const profileKey = `smartstock_profile_${userStorageKey}`
   const addressKey = `smartstock_default_address_${userStorageKey}`
   const coinKey = `smartstock_user_coins_${userStorageKey}`
   const checkinKey = `smartstock_last_checkin_${userStorageKey}`
+
+  // State đồng bộ đơn hàng nội bộ trong modal
+  const [localOrders, setLocalOrders] = useState(orders)
+  useEffect(() => {
+    setLocalOrders(orders)
+  }, [orders])
+
+  // State quản lý danh sách & chi tiết đơn hàng
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all') // 'all' | 'pending' | 'processing' | 'shipping' | 'completed' | 'cancelled'
+  const [selectedOrder, setSelectedOrder] = useState(null)
 
   // Tra cứu bảo hành điện tử
   const [warrantyKeyword, setWarrantyKeyword] = useState(currentUser?.phone || '')
@@ -3222,7 +3322,7 @@ export function CustomerProfileModal({ currentUser, orders = [], onClose, onNoti
     }
     setWarrantyHasSearched(true)
     // Lọc các đơn hàng khớp số điện thoại, mã đơn hoặc tên khách hàng
-    const matches = orders.filter((o) => {
+    const matches = (localOrders || []).filter((o) => {
       const code = (o.orderCode || o.id || '').toString().toLowerCase()
       const phone = (o.customerPhone || o.phone || '').toString().toLowerCase()
       const name = (o.customerName || o.fullName || '').toLowerCase()
@@ -3627,10 +3727,10 @@ export function CustomerProfileModal({ currentUser, orders = [], onClose, onNoti
     const userEmail = (currentUser.email || '').toLowerCase().trim()
     const userName = (currentUser.fullName || '').toLowerCase().trim()
 
-    return (orders || []).filter((o) => {
+    return (localOrders || []).filter((o) => {
       if (!o) return false
-      const orderPhone = (o.customerPhone || '').trim()
-      const orderEmail = (o.customerEmail || '').toLowerCase().trim()
+      const orderPhone = (o.customerPhone || o.phone || '').trim()
+      const orderEmail = (o.customerEmail || o.email || '').toLowerCase().trim()
       const orderNote = (o.note || '').toLowerCase()
 
       // 1. Khớp chính xác Số điện thoại (>= 9 số)
@@ -3646,8 +3746,8 @@ export function CustomerProfileModal({ currentUser, orders = [], onClose, onNoti
       }
 
       // 3. Khớp họ tên (chỉ khi họ tên >= 4 ký tự và đơn hàng không mang SĐT/Email của người khác)
-      if (userName && userName.length >= 4 && o.customerName) {
-        const orderName = o.customerName.toLowerCase().trim()
+      if (userName && userName.length >= 4 && (o.customerName || o.fullName)) {
+        const orderName = (o.customerName || o.fullName).toLowerCase().trim()
         if (userName === orderName) {
           if (orderPhone && userPhone && orderPhone !== userPhone) return false
           if (orderEmail && userEmail && orderEmail !== userEmail) return false
@@ -3657,7 +3757,77 @@ export function CustomerProfileModal({ currentUser, orders = [], onClose, onNoti
 
       return false
     })
-  }, [orders, currentUser])
+  }, [localOrders, currentUser])
+
+  // Số lượng đơn hàng theo từng tab trạng thái
+  const orderCounts = useMemo(() => {
+    const c = { all: userOrders.length, pending: 0, processing: 0, shipping: 0, completed: 0, cancelled: 0 }
+    userOrders.forEach((o) => {
+      const meta = getOrderStatusMeta(o.status)
+      if (c[meta.key] !== undefined) c[meta.key]++
+    })
+    return c
+  }, [userOrders])
+
+  // Danh sách đơn hàng đã lọc theo tab trạng thái đang chọn
+  const displayedOrders = useMemo(() => {
+    if (orderStatusFilter === 'all') return userOrders
+    return userOrders.filter((o) => getOrderStatusMeta(o.status).key === orderStatusFilter)
+  }, [userOrders, orderStatusFilter])
+
+  // Xử lý Hủy đơn hàng (dành cho đơn Chờ xác nhận)
+  const handleCancelOrder = async (targetOrder) => {
+    const code = targetOrder.orderCode || `#ORD-${targetOrder.id}`
+    const ok = window.confirm(`Bạn có chắc chắn muốn hủy đơn hàng ${code}?`)
+    if (!ok) return
+
+    try {
+      await api.cancelOrder(targetOrder.id || targetOrder.orderCode)
+      const updated = (localOrders || []).map((o) => {
+        if (o.id === targetOrder.id || o.orderCode === targetOrder.orderCode) {
+          return { ...o, status: 'cancelled' }
+        }
+        return o
+      })
+      setLocalOrders(updated)
+      if (selectedOrder && (selectedOrder.id === targetOrder.id || selectedOrder.orderCode === targetOrder.orderCode)) {
+        setSelectedOrder({ ...selectedOrder, status: 'cancelled' })
+      }
+      onNotify?.(`✓ Đã hủy đơn hàng ${code} thành công!`)
+      onRefreshOrders?.()
+    } catch (err) {
+      console.warn('Lỗi khi hủy đơn:', err)
+      onNotify?.('⚠️ Không thể hủy đơn hàng lúc này. Vui lòng thử lại sau!')
+    }
+  }
+
+  // Xử lý Mua lại đơn hàng (Re-order)
+  const handleReorder = (targetOrder) => {
+    const items = targetOrder.items || targetOrder.orderDetails || targetOrder.details || []
+    if (items.length === 0) {
+      onNotify?.('⚠️ Đơn hàng không có thông tin sản phẩm để mua lại.')
+      return
+    }
+    items.forEach((it) => {
+      const p = {
+        id: it.productId || it.id,
+        name: it.productName || it.name,
+        price: it.unitPrice || it.price,
+        image: it.image || getProductImage(it) || getCategoryFallbackImage(it),
+        sku: it.sku || `SKU-${it.productId || it.id}`,
+      }
+      onAddToCart?.(p, it.quantity || 1)
+    })
+    onNotify?.(`🎉 Đã thêm ${items.length} món vào giỏ hàng thành công!`)
+  }
+
+  // Xử lý Tra cứu bảo hành cho đơn hàng
+  const handleLookupOrderWarranty = (targetOrder) => {
+    const term = targetOrder.orderCode || targetOrder.customerPhone || currentUser?.phone || ''
+    setWarrantyKeyword(term)
+    setActiveTab('warranty')
+    handleWarrantySearch(term)
+  }
 
   // Doanh số & Hạng thành viên (chỉ tính các đơn hợp lệ hoàn tất của chính khách hàng này, loại trừ đơn hủy/thất bại)
   const completedOrders = userOrders.filter((ord) => {
@@ -4109,89 +4279,706 @@ export function CustomerProfileModal({ currentUser, orders = [], onClose, onNoti
             </div>
           )}
 
-          {/* TAB 2: LỊCH SỬ ĐƠN HÀNG */}
+          {/* TAB 2: LỊCH SỬ ĐƠN HÀNG (CHUẨN SÀN TMĐT SHOPEE / TGDĐ) */}
           {activeTab === 'orders' && (
             <div>
-              <div style={{ marginBottom: '18px', borderBottom: '1px solid #f1f5f3', paddingBottom: '12px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1c1917', margin: 0 }}>
-                  Lịch sử đơn hàng ({userOrders.length})
-                </h3>
-                <p style={{ fontSize: '12px', color: '#78716c', margin: '4px 0 0' }}>
-                  Danh sách đơn hàng bạn đã mua trên SmartStock
-                </p>
-              </div>
-
-              {userOrders.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '48px 20px', color: '#78716c' }}>
-                  <div style={{ fontSize: '40px', marginBottom: '12px' }}>🧾</div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#1c1917', marginBottom: '6px' }}>
-                    Bạn chưa có đơn hàng nào
+              {!selectedOrder ? (
+                /* VIEW 1: DANH SÁCH ĐƠN HÀNG & BỘ LỌC TRẠNG THÁI NGANG */
+                <div>
+                  <div style={{ marginBottom: '14px', borderBottom: '1px solid #f1f5f3', paddingBottom: '12px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1c1917', margin: 0 }}>
+                      Lịch sử đơn hàng ({userOrders.length})
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#78716c', margin: '4px 0 0' }}>
+                      Theo dõi tiến trình vận chuyển và quản lý đơn hàng của bạn
+                    </p>
                   </div>
-                  <p style={{ fontSize: '12px', color: '#a8a29e', margin: 0 }}>
-                    Hãy đặt mua các sản phẩm công nghệ hot với giá Flash Sale ngay hôm nay!
-                  </p>
+
+                  {/* THANH TAB LỌC TRẠNG THÁI ĐƠN HÀNG NGANG */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '8px',
+                      overflowX: 'auto',
+                      paddingBottom: '8px',
+                      marginBottom: '16px',
+                      scrollbarWidth: 'none',
+                    }}
+                  >
+                    {[
+                      { key: 'all', label: 'Tất cả' },
+                      { key: 'pending', label: 'Chờ xác nhận' },
+                      { key: 'processing', label: 'Đang xử lý / Đóng gói' },
+                      { key: 'shipping', label: 'Đang giao hàng' },
+                      { key: 'completed', label: 'Hoàn thành' },
+                      { key: 'cancelled', label: 'Đã hủy' },
+                    ].map((tab) => {
+                      const isActive = orderStatusFilter === tab.key
+                      const count = orderCounts[tab.key] || 0
+                      return (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setOrderStatusFilter(tab.key)}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '20px',
+                            border: isActive ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
+                            background: isActive ? '#ffedd5' : '#ffffff',
+                            color: isActive ? '#c2410c' : '#475569',
+                            fontSize: '12px',
+                            fontWeight: isActive ? 700 : 500,
+                            whiteSpace: 'nowrap',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <span>{tab.label}</span>
+                          {count > 0 && (
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                background: isActive ? '#ea580c' : '#f1f5f9',
+                                color: isActive ? '#ffffff' : '#64748b',
+                                padding: '1px 6px',
+                                borderRadius: '10px',
+                              }}
+                            >
+                              {count}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* DANH SÁCH CÁC THẺ ĐƠN HÀNG */}
+                  {displayedOrders.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '48px 20px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                      <div style={{ fontSize: '40px', marginBottom: '10px' }}>🧾</div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                        {orderStatusFilter === 'all'
+                          ? 'Bạn chưa có đơn hàng nào'
+                          : `Không có đơn hàng nào ở trạng thái này`}
+                      </div>
+                      <p style={{ fontSize: '12px', color: '#64748b', margin: '0 auto 14px', maxWidth: '320px' }}>
+                        Khám phá ngay hàng trăm sản phẩm công nghệ chính hãng giá tốt tại SmartStock Storefront.
+                      </p>
+                      {orderStatusFilter !== 'all' && (
+                        <button
+                          type="button"
+                          onClick={() => setOrderStatusFilter('all')}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Xem tất cả đơn hàng
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {displayedOrders.map((ord, idx) => {
+                        const statusMeta = getOrderStatusMeta(ord.status)
+                        const items = ord.items || ord.orderDetails || ord.details || []
+                        const firstItem = items[0]
+                        const firstItemImg = firstItem
+                          ? (firstItem.image || getProductImage(firstItem) || getCategoryFallbackImage(firstItem))
+                          : null
+
+                        return (
+                          <div
+                            key={ord.id || ord.orderCode || idx}
+                            onClick={() => setSelectedOrder(ord)}
+                            style={{
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '10px',
+                              padding: '14px 16px',
+                              background: '#ffffff',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              position: 'relative',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = '#ea580c'
+                              e.currentTarget.style.boxShadow = '0 6px 16px rgba(234, 88, 12, 0.08)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = '#e2e8f0'
+                              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)'
+                            }}
+                          >
+                            {/* Header thẻ đơn: Mã đơn + Badge trạng thái chuẩn hóa */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
+                                  {ord.orderCode || `#ORD-${ord.id || idx + 1}`}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#94a3b8' }}>•</span>
+                                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                  {ord.createdAt ? formatDate(ord.createdAt) : 'Hôm nay'}
+                                </span>
+                              </div>
+
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  background: statusMeta.bg,
+                                  color: statusMeta.color,
+                                  border: `1px solid ${statusMeta.border}`,
+                                  padding: '3px 10px',
+                                  borderRadius: '14px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                {statusMeta.label}
+                              </span>
+                            </div>
+
+                            {/* Sản phẩm trong đơn */}
+                            {items.length > 0 ? (
+                              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '10px 0', borderTop: '1px solid #f8fafc', borderBottom: '1px solid #f8fafc' }}>
+                                {firstItemImg && (
+                                  <div style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', background: '#f8fafc', border: '1px solid #e2e8f0', flexShrink: 0 }}>
+                                    <img
+                                      src={firstItemImg}
+                                      alt={firstItem?.productName || firstItem?.name || ''}
+                                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                      onError={(e) => {
+                                        e.target.src = getCategoryFallbackImage(firstItem)
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {firstItem?.productName || firstItem?.name || 'Sản phẩm công nghệ'}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                    Số lượng: <strong>x{firstItem?.quantity || 1}</strong>
+                                    {items.length > 1 && (
+                                      <span style={{ color: '#ea580c', marginLeft: '6px', fontWeight: 600 }}>
+                                        (+{items.length - 1} sản phẩm khác)
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                                    {formatVND((firstItem?.unitPrice || firstItem?.price || 0) * (firstItem?.quantity || 1))}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ padding: '8px 0', fontSize: '11px', color: '#64748b' }}>
+                                Đơn hàng SmartStock • PT: {ord.paymentMethod || 'COD'}
+                              </div>
+                            )}
+
+                            {/* Footer thẻ: Tổng tiền + Nút Xem chi tiết > */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                Tổng thanh toán: <strong style={{ fontSize: '14px', fontWeight: 800, color: '#ea580c', marginLeft: '4px' }}>{formatVND(ord.totalAmount || 0)}</strong>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  color: '#ea580c',
+                                }}
+                              >
+                                <span>Xem chi tiết</span>
+                                <ChevronRight size={15} />
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {userOrders.map((ord, idx) => {
-                    const statusText = ord.status || 'Chờ xử lý'
-                    const statusBg =
-                      statusText.includes('thành công') || statusText.includes('Hoàn tất')
-                        ? '#ecfdf5'
-                        : statusText.includes('hủy')
-                        ? '#fef2f2'
-                        : '#eff6ff'
-                    const statusColor =
-                      statusText.includes('thành công') || statusText.includes('Hoàn tất')
-                        ? '#059669'
-                        : statusText.includes('hủy')
-                        ? '#dc2626'
-                        : '#2563eb'
+                /* VIEW 2: CHI TIẾT & THEO DÕI ĐƠN HÀNG (ORDER TRACKING STEPPER) */
+                <div>
+                  {/* Nút quay lại danh sách */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrder(null)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      color: '#ea580c',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      padding: '4px 0',
+                      marginBottom: '14px',
+                    }}
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Quay lại danh sách đơn hàng</span>
+                  </button>
+
+                  {/* Header chi tiết đơn hàng */}
+                  {(() => {
+                    const statusMeta = getOrderStatusMeta(selectedOrder.status)
+                    const currentStep = statusMeta.step
+                    const isCancelled = statusMeta.key === 'cancelled'
+                    const items = selectedOrder.items || selectedOrder.orderDetails || selectedOrder.details || []
+                    const itemsSubtotal = items.reduce((sum, it) => sum + (it.unitPrice || it.price || 0) * (it.quantity || 1), 0)
 
                     return (
-                      <div
-                        key={ord.id || ord.orderCode || idx}
-                        style={{
-                          border: '1px solid #e7e5e4',
-                          borderRadius: '10px',
-                          padding: '12px 14px',
-                          background: '#ffffff',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#1c1917' }}>
-                            {ord.orderCode || `#ORD-${ord.id || idx + 1}`}
-                          </span>
-                          <span style={{ fontSize: '11px', fontWeight: 700, background: statusBg, color: statusColor, padding: '2px 8px', borderRadius: '12px' }}>
-                            {statusText}
-                          </span>
-                        </div>
-
-                        <div style={{ fontSize: '11px', color: '#78716c', marginBottom: '8px' }}>
-                          Ngày đặt: {ord.createdAt ? formatDate(ord.createdAt) : 'Hôm nay'} • PT: <strong style={{ color: '#1c1917' }}>{ord.paymentMethod || 'COD'}</strong>
-                        </div>
-
-                        {ord.items && ord.items.length > 0 && (
-                          <div style={{ background: '#f8faf9', borderRadius: '6px', padding: '8px', marginBottom: '8px', fontSize: '11px' }}>
-                            {ord.items.map((it, iIdx) => (
-                              <div key={iIdx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                <span style={{ color: '#334155' }}>• {it.productName || it.name} x{it.quantity}</span>
-                                <span style={{ color: '#64748b' }}>{formatVND((it.unitPrice || it.price || 0) * (it.quantity || 1))}</span>
-                              </div>
-                            ))}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                        {/* Thanh tiêu đề đơn hàng */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #f1f5f3', paddingBottom: '14px' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                Đơn hàng {selectedOrder.orderCode || `#ORD-${selectedOrder.id}`}
+                              </h3>
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  background: statusMeta.bg,
+                                  color: statusMeta.color,
+                                  border: `1px solid ${statusMeta.border}`,
+                                  padding: '2px 10px',
+                                  borderRadius: '12px',
+                                }}
+                              >
+                                {statusMeta.label}
+                              </span>
+                            </div>
+                            <p style={{ fontSize: '11px', color: '#64748b', margin: '4px 0 0' }}>
+                              Thời gian đặt hàng: <strong>{selectedOrder.createdAt ? formatDate(selectedOrder.createdAt) : 'Hôm nay'}</strong>
+                            </p>
                           </div>
-                        )}
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f5f5f4', paddingTop: '8px' }}>
-                          <span style={{ fontSize: '11px', color: '#78716c' }}>Tổng thanh toán:</span>
-                          <span style={{ fontSize: '14px', fontWeight: 800, color: '#F06449' }}>
-                            {formatVND(ord.totalAmount || 0)}
-                          </span>
+                          {/* Nút hành động nhanh ở header */}
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {statusMeta.key === 'pending' && (
+                              <button
+                                type="button"
+                                onClick={() => handleCancelOrder(selectedOrder)}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #fecaca',
+                                  background: '#fee2e2',
+                                  color: '#dc2626',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <XCircle size={14} />
+                                <span>Hủy đơn</span>
+                              </button>
+                            )}
+
+                            {statusMeta.key === 'completed' && (
+                              <button
+                                type="button"
+                                onClick={() => handleLookupOrderWarranty(selectedOrder)}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #bae6fd',
+                                  background: '#f0f9ff',
+                                  color: '#0284c7',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <ShieldCheck size={14} />
+                                <span>Bảo hành</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* PHẦN 1: THANH TIẾN TRÌNH VẬN CHUYỂN (ORDER TRACKING STEPPER) */}
+                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                          <h4 style={{ fontSize: '12px', fontWeight: 800, color: '#334155', margin: '0 0 14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Tiến trình đơn hàng
+                          </h4>
+
+                          {isCancelled ? (
+                            <div style={{ background: '#ffffff', border: '1.5px solid #fecaca', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: '#fee2e2', display: 'grid', placeItems: 'center', color: '#dc2626', flexShrink: 0 }}>
+                                <XCircle size={22} />
+                              </div>
+                              <div>
+                                <strong style={{ fontSize: '13px', color: '#991b1b', display: 'block', marginBottom: '2px' }}>Đơn hàng đã được hủy</strong>
+                                <p style={{ fontSize: '11px', color: '#b91c1c', margin: 0, lineHeight: 1.4 }}>
+                                  Đơn hàng này đã kết thúc xử lý. Quý khách có thể bấm nút "Mua lại" bên dưới nếu muốn đặt mua lại các sản phẩm này.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ position: 'relative', padding: '10px 4px 6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative' }}>
+                                {[
+                                  { step: 1, title: 'Đặt hàng thành công', desc: selectedOrder.createdAt ? formatDate(selectedOrder.createdAt) : 'Hôm nay', icon: Receipt },
+                                  { step: 2, title: 'Đã xác nhận & Đóng gói', desc: currentStep >= 2 ? 'Kho SmartStock xuất hàng' : 'Chờ xác nhận', icon: Package },
+                                  { step: 3, title: 'Đang vận chuyển', desc: currentStep >= 3 ? 'SmartStock Express' : 'Chờ giao đối tác', icon: Truck },
+                                  { step: 4, title: 'Giao hàng thành công', desc: currentStep >= 4 ? 'Đã nhận hàng thành công' : 'Dự kiến 1-2 ngày', icon: Award },
+                                ].map((s, sIdx, arr) => {
+                                  const isPassed = currentStep >= s.step
+                                  const isCurrent = currentStep === s.step
+                                  const StepIcon = s.icon
+
+                                  return (
+                                    <div
+                                      key={s.step}
+                                      style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        textAlign: 'center',
+                                        flex: 1,
+                                        position: 'relative',
+                                        zIndex: 2,
+                                      }}
+                                    >
+                                      {/* Đường line nối giữa các bước */}
+                                      {sIdx < arr.length - 1 && (
+                                        <div
+                                          style={{
+                                            position: 'absolute',
+                                            top: '18px',
+                                            left: '50%',
+                                            width: '100%',
+                                            height: '3px',
+                                            background: currentStep > s.step ? '#16a34a' : '#cbd5e1',
+                                            zIndex: -1,
+                                            transition: 'all 0.3s ease',
+                                          }}
+                                        />
+                                      )}
+
+                                      {/* Icon vòng tròn */}
+                                      <div
+                                        style={{
+                                          width: '36px',
+                                          height: '36px',
+                                          borderRadius: '50%',
+                                          background: isPassed ? '#16a34a' : '#ffffff',
+                                          border: isPassed ? '2px solid #16a34a' : '2px solid #cbd5e1',
+                                          color: isPassed ? '#ffffff' : '#94a3b8',
+                                          display: 'grid',
+                                          placeItems: 'center',
+                                          marginBottom: '8px',
+                                          boxShadow: isCurrent ? '0 0 0 4px rgba(22, 163, 74, 0.2)' : 'none',
+                                          transition: 'all 0.2s ease',
+                                        }}
+                                      >
+                                        <StepIcon size={17} />
+                                      </div>
+
+                                      <div style={{ fontSize: '11px', fontWeight: isPassed ? 700 : 500, color: isPassed ? '#0f172a' : '#64748b', lineHeight: 1.3, maxWidth: '110px' }}>
+                                        {s.title}
+                                      </div>
+                                      <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px', maxWidth: '100px' }}>
+                                        {s.desc}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* PHẦN 2: THÔNG TIN NHẬN HÀNG & THANH TOÁN */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                          {/* Khung Thông tin nhận hàng */}
+                          <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 800, color: '#334155', textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>📍</span>
+                              <span>Địa chỉ nhận hàng</span>
+                            </div>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', marginBottom: '2px' }}>
+                              {selectedOrder.customerName || selectedOrder.fullName || 'Khách hàng SmartStock'}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px' }}>
+                              Số điện thoại: <strong style={{ color: '#0f172a' }}>{selectedOrder.customerPhone || selectedOrder.phone || 'Chưa cập nhật'}</strong>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#475569', lineHeight: 1.4 }}>
+                              {selectedOrder.shippingAddress || selectedOrder.address || 'Tại cửa hàng SmartStock'}
+                            </div>
+                            {selectedOrder.note && (
+                              <div style={{ marginTop: '8px', padding: '6px 10px', background: '#f8fafc', borderRadius: '6px', fontSize: '10px', color: '#64748b' }}>
+                                <strong>Ghi chú:</strong> {selectedOrder.note}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Khung Phương thức thanh toán & Vận chuyển */}
+                          <div style={{ background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 800, color: '#334155', textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>💳</span>
+                              <span>Thanh toán &amp; Vận chuyển</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
+                              Phương thức: <strong style={{ color: '#0f172a' }}>{selectedOrder.paymentMethod === 'VIETQR' ? 'Chuyển khoản VietQR' : 'Thanh toán tiền mặt khi nhận hàng (COD)'}</strong>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
+                              Đơn vị vận chuyển: <strong style={{ color: '#0f172a' }}>SmartStock Express (Tiêu chuẩn)</strong>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>
+                              Trạng thái thanh toán:{' '}
+                              <span style={{ fontWeight: 700, color: (selectedOrder.paidAmount >= selectedOrder.totalAmount || selectedOrder.paymentMethod === 'VIETQR') ? '#16a34a' : '#ea580c' }}>
+                                {(selectedOrder.paidAmount >= selectedOrder.totalAmount || selectedOrder.paymentMethod === 'VIETQR')
+                                  ? '✓ Đã thanh toán'
+                                  : 'Thanh toán khi nhận hàng'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* PHẦN 3: DANH SÁCH SẢN PHẨM TRONG ĐƠN HÀNG */}
+                        <div style={{ background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                          <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 800, color: '#334155', textTransform: 'uppercase' }}>
+                            Sản phẩm đã đặt ({items.length})
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            {items.map((item, itIdx) => {
+                              const itemImg = item.image || getProductImage(item) || getCategoryFallbackImage(item)
+                              const unitPrice = item.unitPrice || item.price || 0
+                              const qty = item.quantity || 1
+                              const itemTotal = unitPrice * qty
+
+                              return (
+                                <div
+                                  key={itIdx}
+                                  style={{
+                                    display: 'flex',
+                                    gap: '14px',
+                                    alignItems: 'center',
+                                    padding: '14px 16px',
+                                    borderBottom: itIdx < items.length - 1 ? '1px solid #f1f5f9' : 'none',
+                                  }}
+                                >
+                                  <div style={{ width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', background: '#f8fafc', border: '1px solid #e2e8f0', flexShrink: 0 }}>
+                                    <img
+                                      src={itemImg}
+                                      alt={item.productName || item.name}
+                                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                      onError={(e) => {
+                                        e.target.src = getCategoryFallbackImage(item)
+                                      }}
+                                    />
+                                  </div>
+
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <h5 style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', margin: '0 0 3px', lineHeight: 1.3 }}>
+                                      {item.productName || item.name}
+                                    </h5>
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                      Mã SKU: <span style={{ fontFamily: 'monospace', color: '#334155' }}>{item.sku || `SKU-${item.productId || itIdx + 1}`}</span>
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#0284c7', marginTop: '2px', fontWeight: 600 }}>
+                                      🛡️ Bảo hành chính hãng 12 tháng
+                                    </div>
+                                  </div>
+
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div style={{ fontSize: '12px', color: '#64748b' }}>
+                                      {formatVND(unitPrice)} <span style={{ fontWeight: 700, color: '#0f172a' }}>x{qty}</span>
+                                    </div>
+                                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                                      {formatVND(itemTotal)}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* PHẦN 4: BẢNG TỔNG KẾT CHI PHÍ & CỤM NÚT HÀNH ĐỘNG */}
+                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '360px', marginLeft: 'auto', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b' }}>
+                              <span>Tổng tiền hàng:</span>
+                              <strong style={{ color: '#0f172a' }}>{formatVND(itemsSubtotal || selectedOrder.totalAmount)}</strong>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b' }}>
+                              <span>Phí vận chuyển:</span>
+                              <strong style={{ color: '#16a34a' }}>Miễn phí (0₫)</strong>
+                            </div>
+
+                            {(selectedOrder.discountAmount > 0 || selectedOrder.discount > 0) && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#ea580c' }}>
+                                <span>Giảm giá Voucher / Xu:</span>
+                                <strong>-{formatVND(selectedOrder.discountAmount || selectedOrder.discount || 0)}</strong>
+                              </div>
+                            )}
+
+                            <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Tổng thanh toán:</span>
+                              <span style={{ fontSize: '18px', fontWeight: 900, color: '#ea580c' }}>
+                                {formatVND(selectedOrder.totalAmount || 0)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Cụm nút hành động theo ngữ cảnh trạng thái đơn */}
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '14px', flexWrap: 'wrap' }}>
+                            {statusMeta.key === 'pending' && (
+                              <button
+                                type="button"
+                                onClick={() => handleCancelOrder(selectedOrder)}
+                                style={{
+                                  padding: '8px 18px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #fecaca',
+                                  background: '#fee2e2',
+                                  color: '#dc2626',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                }}
+                              >
+                                <XCircle size={15} />
+                                <span>Hủy đơn hàng</span>
+                              </button>
+                            )}
+
+                            {statusMeta.key === 'completed' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleLookupOrderWarranty(selectedOrder)}
+                                  style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #bae6fd',
+                                    background: '#f0f9ff',
+                                    color: '#0284c7',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                  }}
+                                >
+                                  <ShieldCheck size={15} />
+                                  <span>Tra cứu bảo hành</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onNotify?.('⭐ Cảm ơn quý khách! Đánh giá 5 sao cho đơn hàng đã được ghi nhận thành công.')
+                                  }}
+                                  style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #cbd5e1',
+                                    background: '#ffffff',
+                                    color: '#334155',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                  }}
+                                >
+                                  <Star size={15} color="#f59e0b" fill="#f59e0b" />
+                                  <span>Đánh giá sản phẩm</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleReorder(selectedOrder)}
+                                  style={{
+                                    padding: '8px 20px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    background: '#ea580c',
+                                    color: '#ffffff',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+                                  }}
+                                >
+                                  <RotateCcw size={15} />
+                                  <span>Mua lại đơn này</span>
+                                </button>
+                              </>
+                            )}
+
+                            {statusMeta.key === 'cancelled' && (
+                              <button
+                                type="button"
+                                onClick={() => handleReorder(selectedOrder)}
+                                style={{
+                                  padding: '8px 20px',
+                                  borderRadius: '8px',
+                                  border: 'none',
+                                  background: '#ea580c',
+                                  color: '#ffffff',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+                                }}
+                              >
+                                <RotateCcw size={15} />
+                                <span>Mua lại đơn hàng này</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
-                  })}
+                  })()}
                 </div>
               )}
             </div>

@@ -2227,12 +2227,18 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
       {customerProfileOpen && (
         <CustomerProfileModal
           currentUser={currentUser}
-          orders={userOrders}
+          orders={orders && orders.length > 0 ? orders : userOrders}
           onClose={() => setCustomerProfileOpen(false)}
           onNotify={notify}
           userTierInfo={userTierInfo}
           onLogout={onLogout}
           initialTab={customerProfileInitialTab}
+          onAddToCart={addToCart}
+          onRefreshOrders={() => {
+            api.getOrders().then((data) => {
+              if (Array.isArray(data)) setOrders(data)
+            }).catch(console.warn)
+          }}
         />
       )}
 
