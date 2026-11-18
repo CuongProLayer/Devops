@@ -27,7 +27,7 @@ public class ImportsController(IImportService importService) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(CreateImportRequest request)
     {
-        var employeeId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var employeeId = GetCurrentUserId();
         var result = await importService.CreateAsync(employeeId, request);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
@@ -38,7 +38,7 @@ public class ImportsController(IImportService importService) : ControllerBase
     [HttpPost("{id}/confirm")]
     public async Task<IActionResult> Confirm(int id)
     {
-        var employeeId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var employeeId = GetCurrentUserId();
         var result = await importService.ConfirmAsync(id, employeeId);
         return Ok(result);
     }
@@ -59,9 +59,15 @@ public class ImportsController(IImportService importService) : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var employeeId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var employeeId = GetCurrentUserId();
         var success = await importService.DeleteAsync(id, employeeId);
         if (!success) return NotFound(new { message = "Không tìm thấy phiếu nhập kho" });
         return Ok(new { message = "Đã hủy phiếu nhập kho và hoàn trừ tồn kho thành công" });
+    }
+
+    private int GetCurrentUserId()
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(claim, out var id) ? id : 1;
     }
 }

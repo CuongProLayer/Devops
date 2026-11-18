@@ -214,7 +214,7 @@ public record CreateImportRequest(
     [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn nhà cung cấp hợp lệ")] int SupplierId,
     [StringLength(500, ErrorMessage = "Ghi chú không quá 500 ký tự")] string? Note,
     [Required(ErrorMessage = "Danh sách sản phẩm nhập không được để trống")][MinLength(1, ErrorMessage = "Cần ít nhất 1 sản phẩm nhập")] List<CreateImportDetailRequest> Details,
-    [RegularExpression("^(draft|completed)$", ErrorMessage = "Trạng thái phiếu nhập chỉ có thể là draft hoặc completed")]
+    [RegularExpression("^(draft|completed|confirmed)$", ErrorMessage = "Trạng thái phiếu nhập chỉ có thể là draft, completed hoặc confirmed")]
     string Status = "completed"
 );
 

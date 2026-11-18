@@ -45,16 +45,32 @@ public class ImportService(AppDbContext db) : IImportService
 
     public async Task<ImportReceiptDto> CreateAsync(int employeeId, CreateImportRequest request)
     {
-        var targetStatus = request.Status.Trim().ToLowerInvariant();
+        var targetStatus = request.Status?.Trim().ToLowerInvariant() ?? "completed";
+        if (targetStatus == "confirmed") targetStatus = "completed";
         if (targetStatus is not ("draft" or "completed"))
             throw new InvalidOperationException("Trạng thái phiếu nhập chỉ có thể là draft hoặc completed.");
+
+        // Fallback employeeId if user does not exist
+        if (!await db.Users.AnyAsync(u => u.Id == employeeId))
+        {
+            var firstStaff = await db.Users.FirstOrDefaultAsync(u => u.Role == "admin" || u.Role == "warehouse");
+            employeeId = firstStaff?.Id ?? 1;
+        }
 
         await using var tx = await db.Database.BeginTransactionAsync();
         try
         {
-            var code = $"NK{DateTime.Now:yyyyMMdd}{(await db.ImportReceipts.CountAsync()) + 1:D4}";
-            decimal total = 0;
+            var todayStr = DateTime.UtcNow.ToString("yyyyMMdd");
+            var prefix = $"NK{todayStr}";
+            var seq = (await db.ImportReceipts.CountAsync()) + 1;
+            var code = $"{prefix}{seq:D4}";
+            while (await db.ImportReceipts.AnyAsync(r => r.ReceiptCode == code))
+            {
+                seq++;
+                code = $"{prefix}{seq:D4}";
+            }
 
+            decimal total = 0;
             var shouldAddStock = targetStatus is "completed" or "confirmed";
 
             var receipt = new ImportReceipt
