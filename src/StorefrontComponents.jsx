@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   X,
   Check,
@@ -33,9 +33,17 @@ import {
   CheckCircle2,
   Camera,
   Phone,
+  Lock,
+  LogOut,
+  ChevronRight,
+  User,
+  Mail,
+  Calendar,
+  Edit2,
+  Search,
 } from 'lucide-react'
 import { api, formatVND, formatDate } from './api'
-import { getProductImage, getProductImages, getProductSpecs } from './CleanScreens'
+import { getProductImage, getProductImages, getCategoryFallbackImage, getProductSpecs, reverseGeocodeVietnam, getUserStorageKey, getUserAddressList, saveUserAddressList, getUserSavedAddress } from './CleanScreens'
 
 export const POPULAR_VN_ADDRESSES = [
   { name: 'Tòa nhà Bitexco Financial Tower', detail: 'Số 2 Hải Triều, Bến Nghé, Quận 1, TP. Hồ Chí Minh' },
@@ -109,7 +117,15 @@ export function NotifyStockModal({ product, currentUser, onClose, onNotify }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f8faf9', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-          <img src={getProductImage(product)} alt={product.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '8px' }} />
+          <img
+            src={getProductImage(product)}
+            alt={product.name}
+            onError={(e) => {
+              e.currentTarget.onerror = null
+              e.currentTarget.src = getCategoryFallbackImage(product)
+            }}
+            style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '8px' }}
+          />
           <div>
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#1f332f' }}>{product.name}</div>
             <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600 }}>Tồn kho hiện tại: 0 sản phẩm (Tạm hết)</div>
@@ -306,6 +322,10 @@ export function ProductDeepDetailModal({
               <img
                 src={images[activeImgIdx] || images[0]}
                 alt={product.name}
+                onError={(e) => {
+                  e.currentTarget.onerror = null
+                  e.currentTarget.src = getCategoryFallbackImage(product)
+                }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'all 0.3s ease' }}
               />
               <button
@@ -836,11 +856,90 @@ export function FlashSaleSection({ products, onBuyNow, onAddToCart, onOpenDetail
   const minutes = String(Math.floor((timeLeft % 3600) / 60)).padStart(2, '0')
   const seconds = String(timeLeft % 60).padStart(2, '0')
 
-  const flashItems = products.slice(0, 4)
+  // Danh sách 8 sản phẩm Hot Deal chỉ định cho Flash Sale Giá Sốc Hôm Nay
+  const FLASH_TARGETS = [
+    {
+      code: 'PRD-IP16PM-256',
+      name: 'iPhone 16 Pro Max 256GB',
+      match: (p) => (p.name || '').toLowerCase().includes('iphone 16') || (p.productCode || '').includes('IP16'),
+      defaultPrice: 34990000,
+      image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80',
+    },
+    {
+      code: 'MBA-M3-15',
+      name: 'MacBook Air M3 15 inch',
+      match: (p) => (p.name || '').toLowerCase().includes('macbook air') || (p.productCode || '').includes('MBA'),
+      defaultPrice: 32490000,
+      image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80',
+    },
+    {
+      code: 'SONY-WH5-BLK',
+      name: 'Sony WH-1000XM5',
+      match: (p) => (p.name || '').toLowerCase().includes('sony') || (p.productCode || '').includes('WH5') || (p.productCode || '').includes('SONY'),
+      defaultPrice: 7490000,
+      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80',
+    },
+    {
+      code: 'PRD-AIRPODS-PRO2',
+      name: 'Apple AirPods Pro 2 USB-C',
+      match: (p) => (p.name || '').toLowerCase().includes('airpods') || (p.productCode || '').includes('AIRPODS'),
+      defaultPrice: 5690000,
+      image: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?auto=format&fit=crop&w=800&q=80',
+    },
+    {
+      code: 'PRD-APPLE-USBC-WOVEN',
+      name: 'Cáp sạc Apple USB-C Woven',
+      match: (p) => (p.name || '').toLowerCase().includes('woven') || (p.name || '').toLowerCase().includes('cáp sạc') || (p.productCode || '').includes('WOVEN'),
+      defaultPrice: 590000,
+      image: 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=800&q=80',
+    },
+    {
+      code: 'PRD-ANKER-PRIME20K',
+      name: 'Pin dự phòng Anker Prime 20.000mAh 200W',
+      match: (p) => (p.name || '').toLowerCase().includes('pin dự phòng') || (p.name || '').toLowerCase().includes('prime 20') || (p.productCode || '').includes('PRIME20K'),
+      defaultPrice: 2790000,
+      image: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?auto=format&fit=crop&w=800&q=80',
+    },
+    {
+      code: 'PRD-LOGI-MX3S',
+      name: 'Chuột không dây Logitech MX Master 3S',
+      match: (p) => (p.name || '').toLowerCase().includes('logitech') || (p.name || '').toLowerCase().includes('mx master') || (p.productCode || '').includes('MX3S'),
+      defaultPrice: 2490000,
+      image: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=800&q=80',
+    },
+    {
+      code: 'PRD-KEYCHRON-K2',
+      name: 'Bàn phím cơ Keychron K2 Pro Wireless',
+      match: (p) => (p.name || '').toLowerCase().includes('keychron') || (p.name || '').toLowerCase().includes('bàn phím') || (p.productCode || '').includes('KEYCHRON'),
+      defaultPrice: 2190000,
+      image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80',
+    },
+  ]
+
+  // Khớp sản phẩm thực tế từ Database, giữ đúng 8 sản phẩm Hot Deal
+  const flashItems = FLASH_TARGETS.map((target, idx) => {
+    const found = products?.find(target.match)
+    if (found) {
+      return {
+        ...found,
+        image: found.image || getProductImage(found) || target.image,
+      }
+    }
+    return {
+      id: 900 + idx,
+      name: target.name,
+      productCode: target.code,
+      price: target.defaultPrice,
+      quantity: 25,
+      stock: 25,
+      image: target.image,
+    }
+  })
+
   if (!flashItems.length) return null
 
   return (
-    <section className="flash-sale-section">
+    <section className="flash-sale-section" style={{ marginBottom: '28px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#F06449', color: '#fff', display: 'grid', placeItems: 'center', boxShadow: '0 4px 12px rgba(240,100,73,0.3)' }}>
@@ -851,7 +950,7 @@ export function FlashSaleSection({ products, onBuyNow, onAddToCart, onOpenDetail
               ⚡ FLASH SALE GIÁ SỐC HÔM NAY
             </h2>
             <span style={{ fontSize: '11px', color: '#687771' }}>
-              Số lượng máy có hạn • Tự động trừ tồn kho khi chốt đơn
+              8 Hot Deal công nghệ đỉnh cao • Tự động trừ tồn kho khi chốt đơn
             </span>
           </div>
         </div>
@@ -869,7 +968,7 @@ export function FlashSaleSection({ products, onBuyNow, onAddToCart, onOpenDetail
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px' }}>
         {flashItems.map((p, idx) => {
           const stock = p.quantity ?? p.stock ?? 0
           const originalPrice = Math.round(p.price * 1.15)
@@ -879,7 +978,7 @@ export function FlashSaleSection({ products, onBuyNow, onAddToCart, onOpenDetail
 
           return (
             <div
-              key={p.id}
+              key={p.id || p.productCode || idx}
               style={{
                 background: '#ffffff',
                 borderRadius: '12px',
@@ -889,20 +988,44 @@ export function FlashSaleSection({ products, onBuyNow, onAddToCart, onOpenDetail
                 flexDirection: 'column',
                 position: 'relative',
                 boxShadow: '0 2px 10px rgba(240, 100, 73, 0.08)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-3px)'
+                e.currentTarget.style.boxShadow = '0 6px 18px rgba(240, 100, 73, 0.16)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 2px 10px rgba(240, 100, 73, 0.08)'
               }}
             >
               <div style={{ position: 'absolute', top: '10px', left: '10px', background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', zIndex: 2 }}>
                 -15% GIÁ SỐC
               </div>
 
+              {/* Ảnh sản phẩm với fallback onError */}
               <div
-                style={{ width: '100%', height: '140px', borderRadius: '8px', overflow: 'hidden', background: '#f8faf9', cursor: 'pointer', marginBottom: '10px' }}
+                style={{ width: '100%', height: '145px', borderRadius: '8px', overflow: 'hidden', background: '#f8faf9', cursor: 'pointer', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 onClick={() => onOpenDetail?.(p)}
               >
-                <img src={getProductImage(p)} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img
+                  src={getProductImage(p)}
+                  alt={p.name}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = getCategoryFallbackImage(p)
+                  }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s ease' }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                />
               </div>
 
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#1f332f', marginBottom: '6px', cursor: 'pointer' }} onClick={() => onOpenDetail?.(p)}>
+              <div
+                style={{ fontSize: '13px', fontWeight: 700, color: '#1f332f', marginBottom: '6px', cursor: 'pointer', lineHeight: 1.3, minHeight: '34px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                onClick={() => onOpenDetail?.(p)}
+                title={p.name}
+              >
                 {p.name}
               </div>
 
@@ -911,26 +1034,45 @@ export function FlashSaleSection({ products, onBuyNow, onAddToCart, onOpenDetail
                 <span style={{ fontSize: '11px', color: '#9ca3af', textDecoration: 'line-through' }}>{formatVND(originalPrice)}</span>
               </div>
 
-              {/* Thanh tiến trình số lượng đã bán */}
+              {/* Thanh tiến trình số lượng đã bán (chuẩn hóa câu chữ) */}
               <div style={{ marginTop: 'auto', marginBottom: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#e11d48', fontWeight: 700, marginBottom: '4px' }}>
-                  <span>🔥 Đã bán {soldCount} máy</span>
-                  <span>Còn {stock} máy</span>
+                  <span>🔥 Đã bán {soldCount} • Còn {stock} sản phẩm</span>
                 </div>
                 <div className="flash-progress-track">
                   <div className="flash-progress-fill" style={{ width: `${progressPercent}%` }} />
                 </div>
               </div>
 
-              <button
-                type="button"
-                className="btn-express-buy"
-                onClick={() => onBuyNow?.(p)}
-                style={{ height: '34px', fontSize: '12px' }}
-              >
-                <Zap size={14} fill="#fff" />
-                <span>Mua ngay</span>
-              </button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-express-buy"
+                  onClick={() => onBuyNow?.(p)}
+                  style={{ height: '34px', fontSize: '12px' }}
+                >
+                  <Zap size={14} fill="#fff" />
+                  <span>Mua ngay</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAddToCart?.(p)}
+                  title="Thêm vào giỏ hàng"
+                  style={{
+                    height: '34px',
+                    width: '36px',
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: '#fff0eb',
+                    border: '1px solid #fecbc0',
+                    color: '#F06449',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <ShoppingCart size={15} />
+                </button>
+              </div>
             </div>
           )
         })}
@@ -1072,7 +1214,9 @@ export function InvoiceModal({ order, onClose }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2.5px solid #1E3A2F', paddingBottom: '16px', marginBottom: '18px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="brand-mark" style={{ background: '#1E3A2F', color: '#fff', fontSize: '15px', width: '30px', height: '30px', display: 'inline-grid', placeItems: 'center', borderRadius: '8px', fontWeight: 800 }}>&#10022;</span>
+              <span className="brand-mark" style={{ background: '#ffffff', width: '32px', height: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', padding: '2px', border: '1px solid rgba(0,0,0,0.08)' }}>
+                <img src="/logo.png" alt="SmartStock UNG Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </span>
               <div>
                 <span style={{ fontSize: '18px', fontWeight: 900, color: '#1E3A2F', letterSpacing: '-0.3px' }}>SMARTSTOCK</span>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669', marginLeft: '6px' }}>STOREFRONT &amp; INVENTORY OS</span>
@@ -1443,6 +1587,36 @@ export function UpgradedMyOrdersModal({ currentUser, products = [], onClose, onO
       const res = await api.getOrders()
       let items = res?.items || res || []
       if (!Array.isArray(items)) items = []
+      
+      // Lọc chính xác đơn hàng thuộc về tài khoản hiện tại (tài khoản mới tạo sẽ có 0 đơn hàng)
+      if (currentUser) {
+        items = items.filter((o) => {
+          if (!o) return false
+          const userPhone = (currentUser.phone || '').trim()
+          const orderPhone = (o.customerPhone || '').trim()
+          if (userPhone && orderPhone && userPhone.length >= 9 && userPhone === orderPhone) return true
+
+          const userEmail = (currentUser.email || '').toLowerCase().trim()
+          const orderEmail = (o.customerEmail || '').toLowerCase().trim()
+          if (userEmail && orderEmail && userEmail.length >= 5 && userEmail === orderEmail) return true
+
+          const orderNote = (o.note || '').toLowerCase()
+          if (userPhone && userPhone.length >= 9 && orderNote.includes(userPhone)) return true
+          if (userEmail && userEmail.length >= 5 && orderNote.includes(userEmail)) return true
+
+          const userName = (currentUser.fullName || '').toLowerCase().trim()
+          if (userName && userName.length >= 4 && o.customerName) {
+            const orderName = o.customerName.toLowerCase().trim()
+            if (userName === orderName) {
+              if (orderPhone && userPhone && orderPhone !== userPhone) return false
+              if (orderEmail && userEmail && orderEmail !== userEmail) return false
+              return true
+            }
+          }
+
+          return false
+        })
+      }
       setOrders(items)
     } catch (err) {
       console.error('Error fetching orders:', err)
@@ -2893,7 +3067,15 @@ export function RecentlyViewedSection({ items, onOpenDetail, onAddToCart, onBuyN
                 style={{ height: '110px', borderRadius: '6px', overflow: 'hidden', background: '#f8faf9', cursor: 'pointer', marginBottom: '8px' }}
                 onClick={() => onOpenDetail(p)}
               >
-                <img src={getProductImage(p)} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img
+                  src={getProductImage(p)}
+                  alt={p.name}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = getCategoryFallbackImage(p)
+                  }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
               </div>
               <div style={{ fontSize: '11px', fontWeight: 700, color: '#1f332f', marginBottom: '4px', cursor: 'pointer' }} onClick={() => onOpenDetail(p)}>
                 {p.name}
@@ -2982,8 +3164,8 @@ function createProfilePinIcon(L) {
 }
 
 // Hàm làm sạch chuỗi địa chỉ, loại bỏ lỗi dính chữ (ví dụ "MinhSố 2..." hoặc "Nguyễn Minh AnhSố 2...")
-function cleanAddressGlitch(raw) {
-  if (!raw || typeof raw !== 'string') return 'Số 2 Hải Triều, Bến Nghé, Quận 1, TP. Hồ Chí Minh'
+export function cleanAddressGlitch(raw) {
+  if (!raw || typeof raw !== 'string') return ''
   let clean = raw.trim()
   if (/MinhSố/i.test(clean)) {
     clean = clean.replace(/^.*?Minh(?=Số)/i, '').trim()
@@ -2994,7 +3176,7 @@ function cleanAddressGlitch(raw) {
     }
     return match
   }).trim()
-  return clean || 'Số 2 Hải Triều, Bến Nghé, Quận 1, TP. Hồ Chí Minh'
+  return clean || ''
 }
 
 // 3 Địa điểm phổ biến theo yêu cầu kèm tọa độ chuẩn xác
@@ -3019,41 +3201,224 @@ const POPULAR_PROFILE_LANDMARKS = [
   },
 ]
 
-export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, userTierInfo }) {
-  const [defaultName, setDefaultName] = useState(() => {
+export function CustomerProfileModal({ currentUser, orders = [], onClose, onNotify, userTierInfo, onLogout, initialTab = 'profile' }) {
+  const [activeTab, setActiveTab] = useState(initialTab) // 'profile' | 'orders' | 'address' | 'warranty' | 'vouchers' | 'loyalty' | 'notifications'
+  const userStorageKey = (currentUser?.email || currentUser?.username || (currentUser?.userId ? `user_${currentUser.userId}` : '') || 'guest').toLowerCase().trim()
+  const profileKey = `smartstock_profile_${userStorageKey}`
+  const addressKey = `smartstock_default_address_${userStorageKey}`
+  const coinKey = `smartstock_user_coins_${userStorageKey}`
+  const checkinKey = `smartstock_last_checkin_${userStorageKey}`
+
+  // Tra cứu bảo hành điện tử
+  const [warrantyKeyword, setWarrantyKeyword] = useState(currentUser?.phone || '')
+  const [warrantyResults, setWarrantyResults] = useState(null)
+  const [warrantyHasSearched, setWarrantyHasSearched] = useState(false)
+
+  const handleWarrantySearch = (customQuery) => {
+    const query = (customQuery !== undefined ? customQuery : warrantyKeyword).trim().toLowerCase()
+    if (!query) {
+      onNotify?.('⚠️ Vui lòng nhập số điện thoại hoặc mã đơn hàng để tra cứu bảo hành!')
+      return
+    }
+    setWarrantyHasSearched(true)
+    // Lọc các đơn hàng khớp số điện thoại, mã đơn hoặc tên khách hàng
+    const matches = orders.filter((o) => {
+      const code = (o.orderCode || o.id || '').toString().toLowerCase()
+      const phone = (o.customerPhone || o.phone || '').toString().toLowerCase()
+      const name = (o.customerName || o.fullName || '').toLowerCase()
+      return code.includes(query) || phone.includes(query) || name.includes(query)
+    })
+    setWarrantyResults(matches)
+  }
+
+  // Tự động tìm kiếm nếu mở tab bảo hành và đã có SĐT khách
+  useEffect(() => {
+    if (activeTab === 'warranty' && !warrantyHasSearched) {
+      const initialPhone = (currentUser?.phone || profileData.phone || '').trim()
+      if (initialPhone) {
+        setWarrantyKeyword(initialPhone)
+        handleWarrantySearch(initialPhone)
+      } else if (orders.length > 0) {
+        setWarrantyResults(orders)
+        setWarrantyHasSearched(true)
+      }
+    }
+  }, [activeTab])
+
+  // Profile data
+  const [profileData, setProfileData] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
-      return saved.name || currentUser?.fullName || 'Nguyễn Minh Anh'
+      const saved = JSON.parse(localStorage.getItem(profileKey) || '{}')
+      return {
+        fullName: saved.fullName || currentUser?.fullName || currentUser?.username || '',
+        dob: saved.dob || '',
+        gender: saved.gender || '',
+        phone: saved.phone || currentUser?.phone || '',
+        email: currentUser?.email || saved.email || '',
+      }
     } catch {
-      return currentUser?.fullName || 'Nguyễn Minh Anh'
+      return {
+        fullName: currentUser?.fullName || currentUser?.username || '',
+        dob: '',
+        gender: '',
+        phone: currentUser?.phone || '',
+        email: currentUser?.email || '',
+      }
     }
   })
-  const [defaultPhone, setDefaultPhone] = useState(() => {
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState(profileData)
+
+  const handleSaveProfile = (e) => {
+    e?.preventDefault()
+    setProfileData(editForm)
     try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
-      return saved.phone || currentUser?.phone || '0918889999'
-    } catch {
-      return currentUser?.phone || '0918889999'
+      localStorage.setItem(profileKey, JSON.stringify(editForm))
+      const stored = JSON.parse(localStorage.getItem('smartstock_user') || '{}')
+      if (stored && (stored.userId || stored.username)) {
+        stored.fullName = editForm.fullName
+        stored.phone = editForm.phone
+        localStorage.setItem('smartstock_user', JSON.stringify(stored))
+      }
+    } catch {}
+    setIsEditing(false)
+    onNotify?.('✅ Đã cập nhật thông tin cá nhân thành công!')
+  }
+
+  // Sổ địa chỉ đa năng chuẩn Shopee / TikTok Shop (tách biệt 100% theo từng user)
+  const [addressList, setAddressList] = useState(() => getUserAddressList(currentUser))
+  const [addressView, setAddressView] = useState('list') // 'list' | 'add' | 'edit'
+  const [editingAddrId, setEditingAddrId] = useState(null)
+
+  // Form input states khi Thêm mới / Cập nhật
+  const [formName, setFormName] = useState('')
+  const [formPhone, setFormPhone] = useState('')
+  const [formAddress, setFormAddress] = useState('')
+  const [formLabel, setFormLabel] = useState('Nhà riêng')
+  const [formIsDefault, setFormIsDefault] = useState(false)
+
+  // Đồng bộ addressList khi currentUser thay đổi hoặc có event cập nhật
+  useEffect(() => {
+    setAddressList(getUserAddressList(currentUser))
+  }, [currentUser])
+
+  useEffect(() => {
+    const handleAddrUpdate = () => {
+      setAddressList(getUserAddressList(currentUser))
     }
-  })
-  const [defaultAddress, setDefaultAddress] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
-      return cleanAddressGlitch(saved.address)
-    } catch {
-      return 'Số 2 Hải Triều, Bến Nghé, Quận 1, TP. Hồ Chí Minh'
+    window.addEventListener('smartstock_addresses_updated', handleAddrUpdate)
+    return () => window.removeEventListener('smartstock_addresses_updated', handleAddrUpdate)
+  }, [currentUser])
+
+  const handleOpenAddAddress = () => {
+    setEditingAddrId(null)
+    setFormName(profileData.fullName || currentUser?.fullName || currentUser?.username || '')
+    setFormPhone(profileData.phone || currentUser?.phone || '')
+    setFormAddress('')
+    setFormLabel('Nhà riêng')
+    setFormIsDefault(addressList.length === 0)
+    setCoords({ lat: 10.7716, lon: 106.7044 })
+    setAddressView('add')
+  }
+
+  const handleOpenEditAddress = (addr) => {
+    setEditingAddrId(addr.id)
+    setFormName(addr.recipientName || '')
+    setFormPhone(addr.phone || '')
+    setFormAddress(addr.fullAddress || '')
+    setFormLabel(addr.label || 'Nhà riêng')
+    setFormIsDefault(!!addr.isDefault)
+    if (addr.lat && addr.lng) {
+      syncMapLocation(addr.lat, addr.lng, 17)
     }
-  })
+    setAddressView('edit')
+  }
+
+  const handleDeleteAddress = (id) => {
+    if (addressList.length <= 1) {
+      onNotify?.('⚠️ Bạn cần giữ lại ít nhất 1 địa chỉ nhận hàng trong Sổ địa chỉ!')
+      return
+    }
+    const target = addressList.find((a) => a.id === id)
+    let updated = addressList.filter((a) => a.id !== id)
+    if (target?.isDefault && updated.length > 0) {
+      updated[0].isDefault = true
+    }
+    setAddressList(updated)
+    saveUserAddressList(currentUser, updated)
+    onNotify?.('🗑️ Đã xóa địa chỉ thành công!')
+  }
+
+  const handleSetDefaultAddress = (id) => {
+    const updated = addressList.map((a) => ({
+      ...a,
+      isDefault: a.id === id,
+    }))
+    setAddressList(updated)
+    saveUserAddressList(currentUser, updated)
+    onNotify?.('⭐ Đã đặt làm địa chỉ nhận hàng mặc định!')
+  }
+
+  const handleSaveAddressForm = (e) => {
+    e.preventDefault()
+    if (!formAddress.trim()) {
+      onNotify?.('⚠️ Vui lòng nhập địa chỉ nhận hàng chi tiết!')
+      return
+    }
+
+    let updated = [...addressList]
+    if (editingAddrId) {
+      updated = updated.map((a) => {
+        if (a.id === editingAddrId) {
+          return {
+            ...a,
+            recipientName: formName.trim(),
+            phone: formPhone.trim(),
+            fullAddress: cleanAddressGlitch(formAddress.trim()),
+            label: formLabel,
+            lat: coords.lat,
+            lng: coords.lon,
+            isDefault: formIsDefault,
+            updatedAt: new Date().toISOString(),
+          }
+        }
+        return formIsDefault ? { ...a, isDefault: false } : a
+      })
+    } else {
+      const isFirst = updated.length === 0
+      if (formIsDefault || isFirst) {
+        updated = updated.map((a) => ({ ...a, isDefault: false }))
+      }
+      const newAddr = {
+        id: `addr_${Date.now()}`,
+        recipientName: formName.trim(),
+        phone: formPhone.trim(),
+        fullAddress: cleanAddressGlitch(formAddress.trim()),
+        label: formLabel,
+        lat: coords.lat,
+        lng: coords.lon,
+        isDefault: formIsDefault || isFirst,
+        createdAt: new Date().toISOString(),
+      }
+      updated = [newAddr, ...updated]
+    }
+
+    setAddressList(updated)
+    saveUserAddressList(currentUser, updated)
+    setAddressView('list')
+    onNotify?.(editingAddrId ? '✅ Đã cập nhật địa chỉ thành công!' : '🎉 Đã thêm địa chỉ mới vào Sổ địa chỉ!')
+  }
 
   // Tọa độ định vị
   const [coords, setCoords] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
+      const saved = JSON.parse(localStorage.getItem(addressKey) || '{}')
       if (saved.coords && saved.coords.lat && saved.coords.lon) {
         return saved.coords
       }
     } catch {}
-    return { lat: 10.7716, lon: 106.7044 } // Mặc định Bitexco, Q.1 TP.HCM
+    return { lat: 10.7716, lon: 106.7044 }
   })
 
   const [suggestions, setSuggestions] = useState([])
@@ -3068,8 +3433,9 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
   const debounceRef = useRef(null)
   const dropdownRef = useRef(null)
 
-  // Khởi tạo bản đồ tương tác Leaflet
+  // Khởi tạo bản đồ tương tác Leaflet khi ở tab Sổ địa chỉ
   useEffect(() => {
+    if (activeTab !== 'address') return
     let isMounted = true
     ensureProfileLeaflet().then((L) => {
       if (!isMounted || !L || !mapContainerRef.current) return
@@ -3098,13 +3464,11 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
           icon: pinIcon,
         }).addTo(map)
 
-        // Kéo thả ghim đỏ kết thúc -> Reverse Geocoding
         marker.on('dragend', async (e) => {
           const pos = e.target.getLatLng()
           await handleMapLocationChange(pos.lat, pos.lng)
         })
 
-        // Click bất kỳ vị trí nào trên bản đồ -> Di chuyển ghim & Reverse Geocoding
         map.on('click', async (e) => {
           const { lat, lng } = e.latlng
           marker.setLatLng([lat, lng])
@@ -3128,7 +3492,7 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
         markerRef.current = null
       }
     }
-  }, [])
+  }, [activeTab])
 
   // Đóng dropdown khi click ra ngoài
   useEffect(() => {
@@ -3151,30 +3515,12 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
     }
   }
 
-  // Reverse Geocoding khi click / kéo thả ghim
+  // Reverse Geocoding chuẩn Việt Nam khi click / kéo thả ghim
   const handleMapLocationChange = async (lat, lon) => {
     setCoords({ lat, lon })
     setReverseLoading(true)
-
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=vi`,
-        { headers: { 'Accept-Language': 'vi,en' } }
-      )
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.display_name) {
-          setDefaultAddress(data.display_name)
-          setReverseLoading(false)
-          return
-        }
-      }
-    } catch (err) {
-      console.warn('Reverse geocode error:', err)
-    }
-
-    const fallback = `Vị trí [${lat.toFixed(4)}, ${lon.toFixed(4)}]`
-    setDefaultAddress(fallback)
+    const finalAddr = await reverseGeocodeVietnam(lat, lon, formAddress)
+    setFormAddress(finalAddr)
     setReverseLoading(false)
   }
 
@@ -3214,7 +3560,6 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
         console.warn('Nominatim error:', err)
       }
 
-      // Fallback
       const filtered = POPULAR_PROFILE_LANDMARKS.filter(
         (it) => it.name.toLowerCase().includes(val.toLowerCase()) || it.detail.toLowerCase().includes(val.toLowerCase())
       )
@@ -3223,49 +3568,29 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
     }, 350)
   }
 
-  // Chọn gợi ý địa chỉ từ dropdown
   const handleSelectSuggestion = (item) => {
     const finalAddr = item.detail || item.name
-    setDefaultAddress(finalAddr)
+    setFormAddress(finalAddr)
     setShowDropdown(false)
     if (item.lat && item.lon) {
       syncMapLocation(Number(item.lat), Number(item.lon), 17)
     }
   }
 
-  // Chọn địa điểm gợi ý nhanh (Bitexco, Landmark, Phố Đi Bộ)
   const handleSelectLandmark = (lm) => {
-    setDefaultAddress(lm.detail)
+    setFormAddress(lm.detail)
     syncMapLocation(lm.lat, lm.lon, 17)
     if (onNotify) onNotify(`📍 Đã ghim vị trí ${lm.name} trên bản đồ!`)
   }
 
-  // Bắt vị trí GPS thực tế của người dùng
   const handleUseCurrentLocation = async () => {
     setLocating(true)
-
     const applyGPS = async (lat, lon, label = 'Vị trí hiện tại') => {
       syncMapLocation(lat, lon, 17)
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=vi`,
-          { headers: { 'Accept-Language': 'vi,en' } }
-        )
-        if (res.ok) {
-          const data = await res.json()
-          if (data?.display_name) {
-            setDefaultAddress(data.display_name)
-            setLocating(false)
-            if (onNotify) onNotify('🎯 Đã định vị thành công vị trí hiện tại của bạn!')
-            return
-          }
-        }
-      } catch (err) {
-        console.warn('GPS reverse error:', err)
-      }
-      setDefaultAddress(`${label} [${lat.toFixed(4)}, ${lon.toFixed(4)}]`)
+      const finalAddr = await reverseGeocodeVietnam(lat, lon, formAddress)
+      setFormAddress(finalAddr)
       setLocating(false)
-      if (onNotify) onNotify('🎯 Đã định vị theo tọa độ GPS!')
+      if (onNotify) onNotify('🎯 Đã định vị thành công vị trí của bạn!')
     }
 
     if (navigator?.geolocation) {
@@ -3274,7 +3599,6 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
           await applyGPS(pos.coords.latitude, pos.coords.longitude)
         },
         async () => {
-          // Fallback định vị qua IP
           try {
             const res = await fetch('https://ipwho.is/')
             if (res.ok) {
@@ -3296,31 +3620,73 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
     }
   }
 
-  // Calculate actual spending
-  const totalSpent = orders.reduce((sum, ord) => sum + (ord.totalAmount || 0), 0)
+  // Lọc chỉ các đơn hàng THỰC SỰ thuộc về tài khoản này (cách ly 100% với tài khoản khác & đơn hệ thống)
+  const userOrders = useMemo(() => {
+    if (!currentUser) return []
+    const userPhone = (currentUser.phone || '').trim()
+    const userEmail = (currentUser.email || '').toLowerCase().trim()
+    const userName = (currentUser.fullName || '').toLowerCase().trim()
+
+    return (orders || []).filter((o) => {
+      if (!o) return false
+      const orderPhone = (o.customerPhone || '').trim()
+      const orderEmail = (o.customerEmail || '').toLowerCase().trim()
+      const orderNote = (o.note || '').toLowerCase()
+
+      // 1. Khớp chính xác Số điện thoại (>= 9 số)
+      if (userPhone && userPhone.length >= 9) {
+        if (orderPhone && userPhone === orderPhone) return true
+        if (orderNote.includes(userPhone)) return true
+      }
+
+      // 2. Khớp chính xác Email (>= 5 ký tự)
+      if (userEmail && userEmail.length >= 5) {
+        if (orderEmail && userEmail === orderEmail) return true
+        if (orderNote.includes(userEmail)) return true
+      }
+
+      // 3. Khớp họ tên (chỉ khi họ tên >= 4 ký tự và đơn hàng không mang SĐT/Email của người khác)
+      if (userName && userName.length >= 4 && o.customerName) {
+        const orderName = o.customerName.toLowerCase().trim()
+        if (userName === orderName) {
+          if (orderPhone && userPhone && orderPhone !== userPhone) return false
+          if (orderEmail && userEmail && orderEmail !== userEmail) return false
+          return true
+        }
+      }
+
+      return false
+    })
+  }, [orders, currentUser])
+
+  // Doanh số & Hạng thành viên (chỉ tính các đơn hợp lệ hoàn tất của chính khách hàng này, loại trừ đơn hủy/thất bại)
+  const completedOrders = userOrders.filter((ord) => {
+    const st = (ord.status || '').toLowerCase()
+    return st === 'completed' || st === 'hoàn tất' || st === 'giao thành công' || st === 'delivered'
+  })
+  const calculatedSpent = completedOrders.reduce((sum, ord) => sum + (ord.totalAmount || ord.finalAmount || 0), 0)
+  const totalSpent = userTierInfo?.totalSpent != null ? userTierInfo.totalSpent : calculatedSpent
   const tier = userTierInfo || {
-    name: totalSpent >= 50000000 ? 'VIP Kim Cương' : totalSpent >= 20000000 ? 'Thành viên Vàng' : totalSpent >= 5000000 ? 'Thành viên Bạc' : 'Thành viên Mới',
-    badge: totalSpent >= 50000000 ? '💎 VIP Kim Cương' : totalSpent >= 20000000 ? '🥇 VIP Vàng' : totalSpent >= 5000000 ? '🥈 VIP Bạc' : '🥉 Thành viên Mới',
-    discount: totalSpent >= 50000000 ? 5 : totalSpent >= 20000000 ? 3 : totalSpent >= 5000000 ? 2 : 0,
-    nextTarget: totalSpent >= 50000000 ? 100000000 : totalSpent >= 20000000 ? 50000000 : totalSpent >= 5000000 ? 20000000 : 5000000,
-    nextTier: totalSpent >= 50000000 ? 'VIP Toàn Năng' : totalSpent >= 20000000 ? 'VIP Kim Cương' : totalSpent >= 5000000 ? 'VIP Vàng' : 'VIP Bạc',
+    name: totalSpent >= 50000000 ? 'VIP Kim Cương' : totalSpent >= 20000000 ? 'Thành viên Vàng' : totalSpent >= 1000000 ? 'Thành viên Bạc' : 'Thành viên Mới',
+    badge: totalSpent >= 50000000 ? '💎 VIP Kim Cương' : totalSpent >= 20000000 ? '🥇 VIP Vàng' : totalSpent >= 1000000 ? '🥈 VIP Bạc' : '🌱 Thành viên Mới',
+    discount: totalSpent >= 50000000 ? 5 : totalSpent >= 20000000 ? 3 : totalSpent >= 1000000 ? 2 : 0,
+    nextTarget: totalSpent >= 50000000 ? 100000000 : totalSpent >= 20000000 ? 50000000 : 1000000,
+    nextTier: totalSpent >= 50000000 ? 'VIP Toàn Năng' : totalSpent >= 20000000 ? 'VIP Kim Cương' : 'Thành viên Bạc',
   }
+  const progressPercent = totalSpent === 0 ? 0 : Math.min(100, Math.round((totalSpent / tier.nextTarget) * 100))
 
-  const progressPercent = Math.min(100, Math.round((totalSpent / tier.nextTarget) * 100))
-
-  // SmartStock Xu tích lũy (1% tổng doanh số tích lũy của khách hàng)
+  // SmartStock Xu & Điểm danh
   const [coins, setCoins] = useState(() => {
     try {
-      const saved = localStorage.getItem('smartstock_user_coins')
-      if (saved) return parseInt(saved, 10)
-      const calculated = Math.round(totalSpent * 0.01)
-      return calculated > 0 ? calculated : 957200
+      const saved = localStorage.getItem(coinKey)
+      if (saved != null) return parseInt(saved, 10)
+      return 0
     } catch {
-      return 957200
+      return 0
     }
   })
   const [isCheckedInToday, setIsCheckedInToday] = useState(() => {
-    return localStorage.getItem('smartstock_last_checkin') === new Date().toDateString()
+    return localStorage.getItem(checkinKey) === new Date().toDateString()
   })
 
   const handleDailyCheckin = () => {
@@ -3332,8 +3698,8 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
     const nextCoins = coins + 10000
     setCoins(nextCoins)
     setIsCheckedInToday(true)
-    localStorage.setItem('smartstock_user_coins', nextCoins.toString())
-    localStorage.setItem('smartstock_last_checkin', today)
+    localStorage.setItem(coinKey, nextCoins.toString())
+    localStorage.setItem(checkinKey, today)
     window.dispatchEvent(new CustomEvent('smartstock_coins_updated', { detail: { coins: nextCoins } }))
     onNotify?.('🎉 Chúc mừng! Bạn nhận được +10.000 Xu điểm danh ngày mới thành công!')
   }
@@ -3348,19 +3714,7 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
         coords: coords,
         updatedAt: new Date().toISOString(),
       }
-      localStorage.setItem('smartstock_default_address', JSON.stringify(addressData))
-
-      // Cập nhật stored user nếu có
-      try {
-        const storedUser = JSON.parse(localStorage.getItem('smartstock_user') || '{}')
-        if (storedUser && storedUser.userId) {
-          storedUser.fullName = defaultName.trim()
-          storedUser.phone = defaultPhone.trim()
-          storedUser.address = defaultAddress.trim()
-          localStorage.setItem('smartstock_user', JSON.stringify(storedUser))
-        }
-      } catch {}
-
+      localStorage.setItem(addressKey, JSON.stringify(addressData))
       onNotify?.('✅ Đã lưu Sổ địa chỉ mặc định thành công! Lần mua sau sẽ tự động điền trong 1 giây.')
     } catch (err) {
       console.warn('Save address err:', err)
@@ -3369,369 +3723,1434 @@ export function CustomerProfileModal({ currentUser, orders, onClose, onNotify, u
   }
 
   return (
-    <div className="store-modal-backdrop" onClick={onClose}>
-      <div className="store-modal-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '92vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #edf1ef', paddingBottom: '12px', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Award size={20} color="#f59e0b" />
-            <h2 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: '#1f332f' }}>
-              Hồ sơ Khách hàng &amp; Hạng VIP
-            </h2>
-          </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#889892' }}>
-            <X size={20} />
-          </button>
-        </div>
+    <div
+      className="store-modal-backdrop"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(5px)',
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+      }}
+    >
+      <div
+        className="store-modal-panel"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '95vw',
+          maxWidth: '960px',
+          height: '86vh',
+          maxHeight: '660px',
+          background: '#ffffff',
+          borderRadius: '16px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          display: 'flex',
+          flexDirection: 'row',
+          overflow: 'hidden',
+          padding: 0,
+          position: 'relative',
+        }}
+      >
+        {/* Nút X đóng Modal */}
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '14px',
+            right: '14px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#a8a29e',
+            zIndex: 10,
+            padding: '4px',
+            borderRadius: '6px',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = '#1c1917'}
+          onMouseLeave={(e) => e.currentTarget.style.color = '#a8a29e'}
+        >
+          <X size={20} />
+        </button>
 
-        {/* THẺ HẠNG THÀNH VIÊN VIP */}
-        <div className="vip-tier-card" style={{ marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.85 }}>THẺ KHÁCH HÀNG THÂN THIẾT</div>
-              <div style={{ fontSize: '20px', fontWeight: 800, marginTop: '2px' }}>{currentUser?.fullName || 'Nguyễn Minh Anh'}</div>
-              <div style={{ fontSize: '11px', opacity: 0.85 }}>Mã thành viên: #{currentUser?.id ? `VIP-${currentUser.id}` : 'VIP-202688'}</div>
-            </div>
-            <div style={{ background: 'rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 800 }}>
-              {tier.badge}
-            </div>
-          </div>
-
-          <div style={{ marginTop: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px' }}>
-              <span>Doanh số tích lũy: <strong>{formatVND(totalSpent)}</strong></span>
-              <span>Mục tiêu tiếp theo: <strong>{formatVND(tier.nextTarget)}</strong></span>
-            </div>
-            <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.25)', borderRadius: '4px', overflow: 'hidden' }}>
-              <div style={{ width: `${progressPercent}%`, height: '100%', background: '#fff', borderRadius: '4px', transition: 'width 0.4s ease' }} />
-            </div>
-            <div style={{ fontSize: '10px', marginTop: '6px', opacity: 0.9 }}>
-              {totalSpent >= 50000000
-                ? '⭐ Bạn đang sở hữu hạng cao nhất: Giảm thêm 5% trực tiếp trên mọi đơn hàng!'
-                : `Còn thiếu ${formatVND(Math.max(0, tier.nextTarget - totalSpent))} để nâng cấp lên ${tier.nextTier} (Giảm thêm ${tier.discount + 2}%)`}
-            </div>
-          </div>
-        </div>
-
-        {/* TÍCH ĐIỂM SMARTSTOCK XU & ĐIỂM DANH */}
+        {/* CỘT TRÁI (SIDEBAR CÁ NHÂN ~300PX) */}
         <div
           style={{
-            background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
-            border: '1.5px solid #fde68a',
-            borderRadius: '12px',
-            padding: '14px 16px',
-            marginBottom: '20px',
+            width: '310px',
+            flexShrink: 0,
+            background: '#fafaf9',
+            borderRight: '1px solid #e7e5e4',
+            padding: '20px 16px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '12px',
+            flexDirection: 'column',
+            gap: '16px',
+            overflowY: 'auto',
           }}
         >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '18px' }}>🪙</span>
-              <strong style={{ fontSize: '13px', color: '#92400e' }}>Ví Xu Tích Lũy SmartStock</strong>
-              <span style={{ fontSize: '10px', background: '#f59e0b', color: '#fff', padding: '1px 6px', borderRadius: '10px', fontWeight: 800 }}>Tích 1% đơn hàng</span>
-            </div>
-            <div style={{ fontSize: '20px', fontWeight: 900, color: '#b45309', margin: '4px 0 2px' }}>
-              {coins.toLocaleString('vi-VN')} <span style={{ fontSize: '13px', fontWeight: 600 }}>Xu</span>
-            </div>
-            <div style={{ fontSize: '10px', color: '#78350f' }}>
-              Tương đương <strong>{formatVND(coins)}</strong> trừ thẳng vào thanh toán mọi đơn hàng.
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleDailyCheckin}
-            disabled={isCheckedInToday}
+          {/* THẺ THÀNH VIÊN (MEMBERSHIP CARD) GRADIENT NÂU VÀNG ĐỒNG */}
+          <div
             style={{
-              background: isCheckedInToday ? '#e2e8f0' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-              color: isCheckedInToday ? '#64748b' : '#ffffff',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '8px 14px',
-              fontSize: '11px',
-              fontWeight: 800,
-              cursor: isCheckedInToday ? 'not-allowed' : 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: isCheckedInToday ? 'none' : '0 2px 8px rgba(217, 119, 6, 0.3)',
+              background: 'linear-gradient(135deg, #4A3520 0%, #7A542E 100%)',
+              borderRadius: '14px',
+              padding: '16px',
+              color: '#ffffff',
+              boxShadow: '0 8px 20px rgba(74, 53, 32, 0.28)',
+              position: 'relative',
+              overflow: 'hidden',
             }}
           >
-            <span>{isCheckedInToday ? '✓ Đã điểm danh hôm nay' : '🎁 Điểm danh nhận +10.000 Xu mỗi ngày'}</span>
-          </button>
-        </div>
-
-        {/* ==================================================== */}
-        {/* SỔ ĐỊA CHỈ NHẬN HÀNG MẶC ĐỊNH (BẢN ĐỒ + GỢI Ý THÔNG MINH) */}
-        {/* ==================================================== */}
-        <div style={{ background: '#f8faf9', border: '1px solid #e3ebe6', borderRadius: '10px', padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <MapPin size={16} color="#F06449" />
-              <strong style={{ fontSize: '13px', color: '#1f332f' }}>Sổ địa chỉ nhận hàng mặc định</strong>
+            {/* Icon sao vàng góc phải */}
+            <div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '20px', opacity: 0.9 }}>
+              ⭐
             </div>
-            <span style={{ fontSize: '10px', color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-              ⚡ Auto-fill 1 giây khi Mua ngay
-            </span>
+
+            {/* Badge hạng */}
+            <div style={{ display: 'inline-block', background: 'rgba(255, 255, 255, 0.18)', backdropFilter: 'blur(4px)', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.3px', marginBottom: '12px' }}>
+              {tier.badge}
+            </div>
+
+            {/* Tên & Email */}
+            <div style={{ fontSize: '17px', fontWeight: 800, marginBottom: '2px', textShadow: '0 1px 2px rgba(0,0,0,0.3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {profileData.fullName || currentUser?.fullName || currentUser?.username || 'Khách hàng'}
+            </div>
+            <div style={{ fontSize: '11px', opacity: 0.85, marginBottom: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {profileData.email || currentUser?.email || 'customer@smartstock.vn'}
+            </div>
+
+            {/* Tiến trình chi tiêu & Số dư Xu */}
+            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.15)', paddingTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '4px', opacity: 0.9 }}>
+                <span>Chi tiêu tích lũy:</span>
+                <strong>{formatVND(totalSpent)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '6px', opacity: 0.95, color: '#fef08a' }}>
+                <span>🪙 SmartStock Xu:</span>
+                <strong style={{ fontWeight: 800 }}>{coins.toLocaleString('vi-VN')} Xu</strong>
+              </div>
+
+              <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.25)', borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
+                <div style={{ width: `${progressPercent}%`, height: '100%', background: '#f59e0b', borderRadius: '3px', transition: 'width 0.4s ease' }} />
+              </div>
+
+              <div style={{ fontSize: '10px', opacity: 0.9, lineHeight: 1.3 }}>
+                {totalSpent === 0
+                  ? 'Chi tiêu thêm 1.000.000₫ để lên hạng Bạc'
+                  : totalSpent >= 50000000
+                  ? '⭐ Bạn đang sở hữu hạng VIP Kim Cương cao nhất!'
+                  : `Chi tiêu thêm ${formatVND(Math.max(0, tier.nextTarget - totalSpent))} để lên ${tier.nextTier}`}
+              </div>
+            </div>
           </div>
 
-          <form onSubmit={handleSaveAddress} style={{ display: 'grid', gap: '12px' }}>
-            {/* Họ tên & SĐT */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#556862', marginBottom: '4px' }}>Họ tên người nhận *</label>
-                <input
-                  value={defaultName}
-                  onChange={(e) => setDefaultName(e.target.value)}
-                  required
-                  placeholder="Nhập họ và tên..."
-                  style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dce5df', fontSize: '11px', outline: 'none' }}
-                />
+          {/* MENU CÁC TAB CHỨC NĂNG DỌC */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {[
+              { id: 'profile', icon: '👤', label: 'Thông tin cá nhân' },
+              { id: 'orders', icon: '🧾', label: 'Lịch sử đơn hàng' },
+              { id: 'address', icon: '📍', label: 'Sổ địa chỉ' },
+              { id: 'warranty', icon: '🛡️', label: 'Tra cứu Bảo hành' },
+              { id: 'vouchers', icon: '🎁', label: 'Ưu đãi & Voucher' },
+              { id: 'loyalty', icon: '🪙', label: 'Xu & Khách hàng thân thiết' },
+              { id: 'notifications', icon: '✉️', label: 'Thông báo & Hộp thư' },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    borderLeft: isActive ? '3px solid #f59e0b' : '3px solid transparent',
+                    background: isActive ? '#fef3c7' : 'transparent',
+                    color: isActive ? '#92400e' : '#44403c',
+                    fontWeight: isActive ? 700 : 500,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.background = '#f5f5f4'
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '14px' }}>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </span>
+                  <span style={{ fontSize: '12px', opacity: isActive ? 1 : 0.4 }}>❯</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* CỘT PHẢI (NỘI DUNG TỪNG TAB - NỀN TRẮNG TINH TẾ, FLEX: 1) */}
+        <div
+          style={{
+            flex: 1,
+            background: '#ffffff',
+            padding: '24px 28px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* TAB 1: THÔNG TIN CÁ NHÂN */}
+          {activeTab === 'profile' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px', borderBottom: '1px solid #f1f5f3', paddingBottom: '14px' }}>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1c1917', margin: 0 }}>
+                    Thông tin cá nhân
+                  </h3>
+                  <p style={{ fontSize: '12px', color: '#78716c', margin: '4px 0 0' }}>
+                    Quản lý và cập nhật thông tin hồ sơ của bạn
+                  </p>
+                </div>
+
+                {!isEditing ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditForm(profileData)
+                      setIsEditing(true)
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 14px',
+                      borderRadius: '6px',
+                      border: '1px solid #d6d3d1',
+                      background: '#ffffff',
+                      color: '#1c1917',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>✏️</span>
+                    <span>Chỉnh sửa</span>
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #d6d3d1',
+                        background: '#ffffff',
+                        color: '#57534e',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveProfile}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: '#1E3A2F',
+                        color: '#ffffff',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      💾 Lưu
+                    </button>
+                  </div>
+                )}
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#556862', marginBottom: '4px' }}>Số điện thoại liên hệ *</label>
-                <input
-                  value={defaultPhone}
-                  onChange={(e) => setDefaultPhone(e.target.value)}
-                  required
-                  placeholder="Nhập số điện thoại..."
-                  style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dce5df', fontSize: '11px', outline: 'none' }}
-                />
+
+              {/* 5 DÒNG THÔNG TIN */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* 1. Họ và tên */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid #f5f5f4' }}>
+                  <span style={{ fontSize: '12px', color: '#78716c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>👤</span> Họ và tên
+                  </span>
+                  {isEditing ? (
+                    <input
+                      value={editForm.fullName}
+                      onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                      style={{ height: '32px', padding: '0 10px', borderRadius: '6px', border: '1px solid #d6d3d1', fontSize: '12px', width: '220px' }}
+                    />
+                  ) : (
+                    <strong style={{ fontSize: '13px', color: '#1c1917' }}>{profileData.fullName || 'Chưa cập nhật'}</strong>
+                  )}
+                </div>
+
+                {/* 2. Ngày sinh */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid #f5f5f4' }}>
+                  <span style={{ fontSize: '12px', color: '#78716c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>📅</span> Ngày sinh
+                  </span>
+                  {isEditing ? (
+                    <input
+                      type="date"
+                      value={editForm.dob}
+                      onChange={(e) => setEditForm({ ...editForm, dob: e.target.value })}
+                      style={{ height: '32px', padding: '0 10px', borderRadius: '6px', border: '1px solid #d6d3d1', fontSize: '12px', width: '220px' }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '13px', color: profileData.dob ? '#1c1917' : '#9ca3af', fontWeight: profileData.dob ? 600 : 400 }}>
+                      {profileData.dob || 'Chưa cập nhật'}
+                    </span>
+                  )}
+                </div>
+
+                {/* 3. Giới tính */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid #f5f5f4' }}>
+                  <span style={{ fontSize: '12px', color: '#78716c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>⚥</span> Giới tính
+                  </span>
+                  {isEditing ? (
+                    <select
+                      value={editForm.gender}
+                      onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                      style={{ height: '32px', padding: '0 10px', borderRadius: '6px', border: '1px solid #d6d3d1', fontSize: '12px', width: '220px' }}
+                    >
+                      <option value="">-- Chưa chọn --</option>
+                      <option value="Nam">Nam</option>
+                      <option value="Nữ">Nữ</option>
+                      <option value="Khác">Khác</option>
+                    </select>
+                  ) : (
+                    <span style={{ fontSize: '13px', color: profileData.gender ? '#1c1917' : '#9ca3af', fontWeight: profileData.gender ? 700 : 400 }}>
+                      {profileData.gender || 'Chưa cập nhật'}
+                    </span>
+                  )}
+                </div>
+
+                {/* 4. Số điện thoại */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid #f5f5f4' }}>
+                  <span style={{ fontSize: '12px', color: '#78716c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>📞</span> Số điện thoại
+                  </span>
+                  {isEditing ? (
+                    <input
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                      placeholder="Nhập số điện thoại..."
+                      style={{ height: '32px', padding: '0 10px', borderRadius: '6px', border: '1px solid #d6d3d1', fontSize: '12px', width: '220px' }}
+                    />
+                  ) : (
+                    <strong style={{ fontSize: '13px', color: '#1c1917' }}>{profileData.phone || 'Chưa cập nhật'}</strong>
+                  )}
+                </div>
+
+                {/* 5. Email kèm icon ổ khóa */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid #f5f5f4' }}>
+                  <span style={{ fontSize: '12px', color: '#78716c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>✉️</span> Email
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#44403c', fontWeight: 600 }}>
+                    <span>{profileData.email}</span>
+                    <span title="Email đăng nhập bảo mật không thể thay đổi">🔒</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* NÚT ĐĂNG XUẤT Ở GÓC DƯỚI BÊN TRÁI */}
+              <div style={{ marginTop: '36px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose()
+                    onLogout?.()
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #fee2e2',
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#fee2e2'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#fef2f2'
+                  }}
+                >
+                  <span>↪</span>
+                  <span>Đăng xuất</span>
+                </button>
               </div>
             </div>
+          )}
 
-            {/* Ô nhập địa chỉ chi tiết (Đã làm sạch, có Autocomplete & Nút Dùng vị trí hiện tại) */}
-            <div style={{ position: 'relative' }} ref={dropdownRef}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <label style={{ fontSize: '11px', color: '#556862' }}>Địa chỉ giao hàng chi tiết *</label>
-                <span style={{ fontSize: '10px', color: '#7a8c85' }}>Gợi ý thông minh + Định vị vệ tinh</span>
+          {/* TAB 2: LỊCH SỬ ĐƠN HÀNG */}
+          {activeTab === 'orders' && (
+            <div>
+              <div style={{ marginBottom: '18px', borderBottom: '1px solid #f1f5f3', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1c1917', margin: 0 }}>
+                  Lịch sử đơn hàng ({userOrders.length})
+                </h3>
+                <p style={{ fontSize: '12px', color: '#78716c', margin: '4px 0 0' }}>
+                  Danh sách đơn hàng bạn đã mua trên SmartStock
+                </p>
               </div>
 
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <div style={{ position: 'relative', flex: 1 }}>
+              {userOrders.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px 20px', color: '#78716c' }}>
+                  <div style={{ fontSize: '40px', marginBottom: '12px' }}>🧾</div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#1c1917', marginBottom: '6px' }}>
+                    Bạn chưa có đơn hàng nào
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#a8a29e', margin: 0 }}>
+                    Hãy đặt mua các sản phẩm công nghệ hot với giá Flash Sale ngay hôm nay!
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {userOrders.map((ord, idx) => {
+                    const statusText = ord.status || 'Chờ xử lý'
+                    const statusBg =
+                      statusText.includes('thành công') || statusText.includes('Hoàn tất')
+                        ? '#ecfdf5'
+                        : statusText.includes('hủy')
+                        ? '#fef2f2'
+                        : '#eff6ff'
+                    const statusColor =
+                      statusText.includes('thành công') || statusText.includes('Hoàn tất')
+                        ? '#059669'
+                        : statusText.includes('hủy')
+                        ? '#dc2626'
+                        : '#2563eb'
+
+                    return (
+                      <div
+                        key={ord.id || ord.orderCode || idx}
+                        style={{
+                          border: '1px solid #e7e5e4',
+                          borderRadius: '10px',
+                          padding: '12px 14px',
+                          background: '#ffffff',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#1c1917' }}>
+                            {ord.orderCode || `#ORD-${ord.id || idx + 1}`}
+                          </span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, background: statusBg, color: statusColor, padding: '2px 8px', borderRadius: '12px' }}>
+                            {statusText}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: '11px', color: '#78716c', marginBottom: '8px' }}>
+                          Ngày đặt: {ord.createdAt ? formatDate(ord.createdAt) : 'Hôm nay'} • PT: <strong style={{ color: '#1c1917' }}>{ord.paymentMethod || 'COD'}</strong>
+                        </div>
+
+                        {ord.items && ord.items.length > 0 && (
+                          <div style={{ background: '#f8faf9', borderRadius: '6px', padding: '8px', marginBottom: '8px', fontSize: '11px' }}>
+                            {ord.items.map((it, iIdx) => (
+                              <div key={iIdx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                                <span style={{ color: '#334155' }}>• {it.productName || it.name} x{it.quantity}</span>
+                                <span style={{ color: '#64748b' }}>{formatVND((it.unitPrice || it.price || 0) * (it.quantity || 1))}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f5f5f4', paddingTop: '8px' }}>
+                          <span style={{ fontSize: '11px', color: '#78716c' }}>Tổng thanh toán:</span>
+                          <span style={{ fontSize: '14px', fontWeight: 800, color: '#F06449' }}>
+                            {formatVND(ord.totalAmount || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: SỔ ĐỊA CHỈ (CHUẨN SHOPEE / TIKTOK SHOP) */}
+          {activeTab === 'address' && (
+            <div>
+              {addressView === 'list' ? (
+                <div>
+                  {/* Header Sổ địa chỉ */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f3', paddingBottom: '12px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1c1917', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>Địa chỉ của tôi</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#ea580c', background: '#ffedd5', padding: '2px 8px', borderRadius: '12px' }}>
+                          Đã lưu {addressList.length} địa chỉ
+                        </span>
+                      </h3>
+                      <p style={{ fontSize: '12px', color: '#78716c', margin: '4px 0 0' }}>
+                        Địa chỉ mặc định được ưu tiên tự động điền khi Mua ngay &amp; Đặt hàng
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenAddAddress}
+                      style={{
+                        background: '#ea580c',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '8px 16px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)',
+                      }}
+                    >
+                      <Plus size={14} />
+                      <span>+ Thêm địa chỉ mới</span>
+                    </button>
+                  </div>
+
+                  {/* Danh sách địa chỉ */}
+                  {addressList.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '48px 20px', background: '#fafaf9', borderRadius: '12px', border: '1px dashed #d6d3d1' }}>
+                      <div style={{ fontSize: '42px', marginBottom: '12px' }}>📍</div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#1c1917', marginBottom: '6px' }}>
+                        Bạn chưa có địa chỉ nhận hàng nào
+                      </div>
+                      <p style={{ fontSize: '12px', color: '#a8a29e', margin: '0 0 16px' }}>
+                        Hãy thêm địa chỉ để hệ thống tự động điền trong 1 giây khi Mua ngay và Đặt hàng!
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleOpenAddAddress}
+                        style={{
+                          background: '#ea580c',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '10px 20px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <Plus size={16} />
+                        <span>+ Thêm địa chỉ mới</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {[...addressList]
+                        .sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0))
+                        .map((addr) => {
+                          const labelIcon = addr.label === 'Văn phòng' ? '🏢' : addr.label === 'Trường học / KTX' ? '🎓' : addr.label === 'Khác' ? '📌' : '🏠'
+                          return (
+                            <div
+                              key={addr.id}
+                              style={{
+                                border: addr.isDefault ? '1.5px solid #ea580c' : '1px solid #e7e5e4',
+                                background: addr.isDefault ? '#fffbf7' : '#ffffff',
+                                borderRadius: '10px',
+                                padding: '14px 16px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'flex-start',
+                                gap: '14px',
+                                boxShadow: addr.isDefault ? '0 2px 8px rgba(234, 88, 12, 0.08)' : '0 1px 3px rgba(0,0,0,0.03)',
+                              }}
+                            >
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                                  <strong style={{ fontSize: '14px', color: '#1c1917' }}>{addr.recipientName}</strong>
+                                  <span style={{ fontSize: '12px', color: '#78716c' }}>| {addr.phone}</span>
+                                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }}>
+                                    {labelIcon} {addr.label || 'Nhà riêng'}
+                                  </span>
+                                  {addr.isDefault && (
+                                    <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', background: '#ea580c', color: '#ffffff' }}>
+                                      Mặc định
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#44403c', lineHeight: 1.45 }}>
+                                  📍 {addr.fullAddress}
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditAddress(addr)}
+                                    style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                                  >
+                                    Cập nhật
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteAddress(addr.id)}
+                                    style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                                  >
+                                    Xóa
+                                  </button>
+                                </div>
+                                {!addr.isDefault && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetDefaultAddress(addr.id)}
+                                    style={{
+                                      background: '#ffffff',
+                                      border: '1px solid #d6d3d1',
+                                      borderRadius: '5px',
+                                      padding: '4px 10px',
+                                      fontSize: '10px',
+                                      fontWeight: 700,
+                                      color: '#44403c',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Thiết lập mặc định
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* GIAO DIỆN FORM THÊM MỚI / CHỈNH SỬA ĐỊA CHỈ */
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid #f1f5f3', paddingBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setAddressView('list')}
+                        style={{
+                          background: '#f1f5f9',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: '#475569',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ← Quay lại danh sách
+                      </button>
+                      <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#1c1917', margin: 0 }}>
+                        {editingAddrId ? 'Cập nhật địa chỉ nhận hàng' : 'Thêm địa chỉ nhận hàng mới'}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSaveAddressForm} style={{ display: 'grid', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: '#556862', marginBottom: '4px' }}>Họ tên người nhận *</label>
+                        <input
+                          value={formName}
+                          onChange={(e) => setFormName(e.target.value)}
+                          required
+                          placeholder="Nhập họ và tên..."
+                          style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dce5df', fontSize: '11px', outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: '#556862', marginBottom: '4px' }}>Số điện thoại liên hệ *</label>
+                        <input
+                          value={formPhone}
+                          onChange={(e) => setFormPhone(e.target.value)}
+                          required
+                          placeholder="Nhập số điện thoại..."
+                          style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dce5df', fontSize: '11px', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ position: 'relative' }} ref={dropdownRef}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '11px', color: '#556862' }}>Địa chỉ nhận hàng chi tiết *</label>
+                        <span style={{ fontSize: '10px', color: '#7a8c85' }}>Gợi ý thông minh + Định vị vệ tinh</span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                          <input
+                            value={formAddress}
+                            onChange={(e) => {
+                              setFormAddress(e.target.value)
+                              handleAddressInputChange(e)
+                            }}
+                            onFocus={() => { if (suggestions.length > 0) setShowDropdown(true) }}
+                            required
+                            placeholder="Nhập số nhà, tên đường hoặc click chọn trên bản đồ..."
+                            style={{
+                              width: '100%',
+                              height: '36px',
+                              padding: '0 10px 0 30px',
+                              borderRadius: '6px',
+                              border: '1px solid #dce5df',
+                              fontSize: '11px',
+                              outline: 'none',
+                            }}
+                          />
+                          <span style={{ position: 'absolute', left: '10px', top: '10px', fontSize: '13px' }}>📍</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleUseCurrentLocation}
+                          disabled={locating}
+                          style={{
+                            height: '36px',
+                            padding: '0 12px',
+                            borderRadius: '6px',
+                            background: '#fef3c7',
+                            border: '1px solid #fde68a',
+                            color: '#92400e',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: locating ? 'not-allowed' : 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <span className={locating ? 'spin' : ''}>🎯</span>
+                          <span>{locating ? 'Đang dò GPS...' : 'Dùng vị trí hiện tại'}</span>
+                        </button>
+                      </div>
+
+                      {showDropdown && suggestions.length > 0 && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            top: '100%',
+                            zIndex: 100,
+                            background: '#ffffff',
+                            borderRadius: '8px',
+                            border: '1px solid #dce5df',
+                            boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
+                            marginTop: '4px',
+                            maxHeight: '180px',
+                            overflowY: 'auto',
+                          }}
+                        >
+                          {suggestions.map((item, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => handleSelectSuggestion(item)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '8px 12px',
+                                cursor: 'pointer',
+                                borderBottom: idx === suggestions.length - 1 ? 'none' : '1px solid #f1f5f3',
+                                fontSize: '11px',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = '#f8faf9')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = '#ffffff')}
+                            >
+                              <span style={{ fontSize: '14px', flexShrink: 0 }}>📍</span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 700, color: '#1f332f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {item.name}
+                                </div>
+                                <div style={{ fontSize: '10px', color: '#687771', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {item.detail}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Gợi ý địa điểm nhanh */}
+                    <div>
+                      <div style={{ fontSize: '10px', color: '#7a8c85', marginBottom: '4px' }}>Địa điểm phổ biến (bấm để ghim tức thì):</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {POPULAR_PROFILE_LANDMARKS.map((item, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSelectLandmark(item)}
+                            style={{
+                              fontSize: '10px',
+                              padding: '3px 8px',
+                              borderRadius: '5px',
+                              background: '#ffffff',
+                              border: '1px solid #dce5df',
+                              color: '#344943',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>📍</span>
+                            <span>{item.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Khung bản đồ tương tác (Interactive Map 180px) */}
+                    <div
+                      style={{
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        border: '1px solid #dce5df',
+                        background: '#f8fafc',
+                        position: 'relative',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '5px 10px',
+                          background: '#f1f5f3',
+                          borderBottom: '1px solid #e2ebe6',
+                          fontSize: '10px',
+                          color: '#475569',
+                        }}
+                      >
+                        <span>
+                          {reverseLoading ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ea580c', fontWeight: 600 }}>
+                              <RefreshCw size={10} className="spin" /> Đang cập nhật địa chỉ từ điểm ghim...
+                            </span>
+                          ) : (
+                            <span>💡 Click bản đồ hoặc kéo thả ghim đỏ để chọn vị trí</span>
+                          )}
+                        </span>
+                        <span style={{ fontSize: '9px', opacity: 0.8, fontFamily: 'monospace' }}>
+                          [{coords.lat.toFixed(4)}, {coords.lon.toFixed(4)}]
+                        </span>
+                      </div>
+
+                      <div
+                        ref={mapContainerRef}
+                        style={{
+                          width: '100%',
+                          height: '180px',
+                          display: leafletReady ? 'block' : 'none',
+                        }}
+                      />
+
+                      {!leafletReady && (
+                        <iframe
+                          title="Bản đồ giao hàng"
+                          loading="lazy"
+                          style={{ width: '100%', height: '180px', border: 0, display: 'block' }}
+                          src={`https://maps.google.com/maps?q=${encodeURIComponent(formAddress || 'Việt Nam')}&hl=vi&z=16&output=embed`}
+                        />
+                      )}
+                    </div>
+
+                    {/* Phân loại nhãn địa chỉ */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#556862', marginBottom: '6px' }}>
+                        Loại địa chỉ:
+                      </label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {[
+                          { key: 'Nhà riêng', icon: '🏠', label: 'Nhà riêng' },
+                          { key: 'Văn phòng', icon: '🏢', label: 'Văn phòng' },
+                          { key: 'Trường học / KTX', icon: '🎓', label: 'Trường học / KTX' },
+                          { key: 'Khác', icon: '📌', label: 'Khác' },
+                        ].map((t) => (
+                          <button
+                            key={t.key}
+                            type="button"
+                            onClick={() => setFormLabel(t.key)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: formLabel === t.key ? '1.5px solid #ea580c' : '1px solid #dce5df',
+                              background: formLabel === t.key ? '#fff7ed' : '#ffffff',
+                              color: formLabel === t.key ? '#ea580c' : '#475569',
+                            }}
+                          >
+                            {t.icon} {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Checkbox Đặt làm mặc định */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#1c1917', fontWeight: 600 }}>
+                      <input
+                        type="checkbox"
+                        checked={formIsDefault}
+                        onChange={(e) => setFormIsDefault(e.target.checked)}
+                        style={{ accentColor: '#ea580c', width: '16px', height: '16px' }}
+                      />
+                      <span>Đặt làm địa chỉ nhận hàng mặc định</span>
+                    </label>
+
+                    {/* Nút Submit / Cancel */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setAddressView('list')}
+                        style={{
+                          height: '36px',
+                          padding: '0 16px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          borderRadius: '6px',
+                          border: '1px solid #dce5df',
+                          background: '#ffffff',
+                          color: '#475569',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        className="button primary"
+                        style={{
+                          background: '#ea580c',
+                          borderColor: '#ea580c',
+                          height: '36px',
+                          padding: '0 18px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: 'pointer',
+                          borderRadius: '6px',
+                          color: '#fff',
+                        }}
+                      >
+                        <Check size={15} />
+                        <span>{editingAddrId ? '✓ Cập nhật địa chỉ' : '✓ Lưu vào Sổ địa chỉ'}</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: TRA CỨU BẢO HÀNH ĐIỆN TỬ */}
+          {activeTab === 'warranty' && (
+            <div>
+              <div style={{ marginBottom: '16px', borderBottom: '1px solid #f1f5f3', paddingBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ShieldCheck size={22} color="#0284c7" />
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1c1917', margin: 0 }}>
+                    Tra cứu Bảo hành điện tử (e-Warranty)
+                  </h3>
+                </div>
+                <p style={{ fontSize: '12px', color: '#78716c', margin: '4px 0 0' }}>
+                  Kiểm tra thời hạn bảo hành 12 tháng chính hãng theo Số điện thoại hoặc Mã đơn hàng SmartStock
+                </p>
+              </div>
+
+              {/* THANH TÌM KIẾM BẢO HÀNH */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  handleWarrantySearch()
+                }}
+                style={{
+                  display: 'flex',
+                  gap: '8px',
+                  marginBottom: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    background: '#f8fafc',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '8px',
+                    padding: '0 12px',
+                    height: '42px',
+                  }}
+                >
+                  <Search size={16} color="#64748b" style={{ flexShrink: 0, marginRight: '8px' }} />
                   <input
-                    value={defaultAddress}
-                    onChange={handleAddressInputChange}
-                    onFocus={() => { if (suggestions.length > 0) setShowDropdown(true) }}
-                    required
-                    placeholder="Nhập số nhà, tên đường hoặc chọn nhanh bên dưới..."
+                    value={warrantyKeyword}
+                    onChange={(e) => setWarrantyKeyword(e.target.value)}
+                    placeholder="Nhập số điện thoại (VD: 0908...) hoặc Mã đơn hàng (VD: #ORD-2026-...)"
                     style={{
                       width: '100%',
-                      height: '36px',
-                      padding: '0 10px 0 30px',
-                      borderRadius: '6px',
-                      border: '1px solid #dce5df',
-                      fontSize: '11px',
+                      border: 'none',
                       outline: 'none',
-                      background: '#ffffff',
+                      background: 'transparent',
+                      fontSize: '12px',
+                      color: '#0f172a',
                     }}
                   />
-                  <span style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', pointerEvents: 'none' }}>
-                    📍
-                  </span>
+                  {warrantyKeyword && (
+                    <button
+                      type="button"
+                      onClick={() => setWarrantyKeyword('')}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0 }}
+                    >
+                      <X size={15} />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  style={{
+                    padding: '0 20px',
+                    height: '42px',
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flexShrink: 0,
+                    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                  }}
+                >
+                  <ShieldCheck size={16} />
+                  <span>Tra cứu ngay</span>
+                </button>
+              </form>
+
+              {/* Gợi ý tra cứu nhanh */}
+              {currentUser?.phone && warrantyKeyword !== currentUser.phone && (
+                <div style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#64748b' }}>
+                  <span>Gợi ý nhanh:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWarrantyKeyword(currentUser.phone)
+                      handleWarrantySearch(currentUser.phone)
+                    }}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid #bae6fd',
+                      background: '#f0f9ff',
+                      color: '#0284c7',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🔍 Tra cứu theo SĐT của tôi: {currentUser.phone}
+                  </button>
+                </div>
+              )}
+
+              {/* KẾT QUẢ TRA CỨU */}
+              {warrantyResults !== null && (
+                <div>
+                  {warrantyResults.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '36px 20px', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔍</div>
+                      <strong style={{ fontSize: '13px', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Chưa tìm thấy hồ sơ bảo hành cho từ khóa "{warrantyKeyword}"
+                      </strong>
+                      <p style={{ fontSize: '11px', color: '#64748b', maxWidth: '420px', margin: '0 auto 12px', lineHeight: 1.5 }}>
+                        Quý khách vui lòng kiểm tra lại chính xác số điện thoại dùng khi đặt hàng hoặc mã đơn hàng. Mọi thiết bị chính hãng tại SmartStock đều được kích hoạt bảo hành tự động.
+                      </p>
+                      <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600 }}>
+                        📞 Hotline hỗ trợ kích hoạt bảo hành: 1800.6868 (Miễn cước 24/7)
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {warrantyResults.flatMap((ord) => {
+                        const items = ord.items || ord.orderDetails || ord.orderItems || []
+                        const ordDate = ord.createdAt ? new Date(ord.createdAt) : new Date()
+                        // Tính ngày hết hạn 12 tháng
+                        const expireDate = new Date(ordDate.getTime() + 365 * 24 * 60 * 60 * 1000)
+                        const isStillValid = new Date() < expireDate
+
+                        return items.map((item, idx) => {
+                          const itemImg = item.image || getProductImage(item) || getCategoryFallbackImage(item)
+                          const itemName = item.productName || item.name || 'Thiết bị công nghệ chính hãng'
+                          const serialCode = `VN/A-${(ord.orderCode || 'ORD').replace(/[^a-zA-Z0-9]/g, '')}-${item.productId || item.id || (idx + 1)}`
+
+                          return (
+                            <div
+                              key={`${ord.id || ord.orderCode}-${idx}`}
+                              style={{
+                                border: '1.5px solid #e0f2fe',
+                                borderRadius: '10px',
+                                background: '#f0f9ff',
+                                padding: '16px',
+                                display: 'flex',
+                                gap: '14px',
+                                alignItems: 'flex-start',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: '64px',
+                                  height: '64px',
+                                  borderRadius: '8px',
+                                  overflow: 'hidden',
+                                  background: '#ffffff',
+                                  border: '1px solid #cbd5e1',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <img
+                                  src={itemImg}
+                                  alt={itemName}
+                                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                  onError={(e) => {
+                                    e.target.src = getCategoryFallbackImage(item)
+                                  }}
+                                />
+                              </div>
+
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                                  <div>
+                                    <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px', lineHeight: 1.3 }}>
+                                      {itemName}
+                                    </h4>
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                      Đơn hàng: <strong style={{ color: '#0284c7' }}>{ord.orderCode || `#ORD-${ord.id}`}</strong> • Khách: <strong>{ord.customerName || ord.fullName || 'Khách hàng'}</strong>
+                                    </div>
+                                  </div>
+
+                                  <span
+                                    style={{
+                                      padding: '3px 10px',
+                                      borderRadius: '16px',
+                                      fontSize: '11px',
+                                      fontWeight: 800,
+                                      background: isStillValid ? '#dcfce7' : '#fee2e2',
+                                      color: isStillValid ? '#15803d' : '#b91c1c',
+                                      border: isStillValid ? '1px solid #bbf7d0' : '1px solid #fecaca',
+                                      whiteSpace: 'nowrap',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    <CheckCircle2 size={12} />
+                                    <span>{isStillValid ? '🟢 Đang bảo hành chính hãng' : 'Hết hạn bảo hành'}</span>
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '12px', background: '#ffffff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                  <div>
+                                    <div style={{ fontSize: '10px', color: '#64748b' }}>Mã Serial / IMEI:</div>
+                                    <strong style={{ fontSize: '11px', color: '#0f172a', fontFamily: 'monospace' }}>{serialCode}</strong>
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: '10px', color: '#64748b' }}>Ngày kích hoạt:</div>
+                                    <strong style={{ fontSize: '11px', color: '#0f172a' }}>{formatDate(ord.createdAt)}</strong>
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: '10px', color: '#64748b' }}>Thời hạn bảo hành:</div>
+                                    <strong style={{ fontSize: '11px', color: '#0284c7' }}>12 Tháng chính hãng</strong>
+                                  </div>
+                                </div>
+
+                                <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#64748b' }}>
+                                  <span>Cam kết: 1 đổi 1 trong 30 ngày nếu có lỗi phần cứng từ NSX</span>
+                                  <span style={{ color: '#0284c7', fontWeight: 700 }}>Hỗ trợ: 1800.6868</span>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CHÍNH SÁCH BẢO HÀNH CHUẨN */}
+              <div style={{ marginTop: '20px', padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <h5 style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🛡️</span>
+                  <span>Quy chuẩn Bảo hành điện tử tại SmartStock</span>
+                </h5>
+                <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: '#475569', lineHeight: 1.6 }}>
+                  <li>Tự động kích hoạt ngay khi nhận hàng thành công qua Số điện thoại &amp; Mã đơn hàng.</li>
+                  <li>Không cần giữ hóa đơn giấy, chỉ cần cung cấp đúng số điện thoại khi đến bất kỳ trung tâm bảo hành nào.</li>
+                  <li>Bao test 1 đổi 1 trong 30 ngày đầu nếu phát sinh lỗi từ nhà sản xuất.</li>
+                  <li>Miễn phí vận chuyển 2 chiều đối với các trường hợp gửi thiết bị bảo hành từ xa.</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: ƯU ĐÃI & VOUCHER */}
+          {activeTab === 'vouchers' && (
+            <div>
+              <div style={{ marginBottom: '16px', borderBottom: '1px solid #f1f5f3', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1c1917', margin: 0 }}>
+                  Kho Voucher &amp; Ưu đãi SmartStock
+                </h3>
+                <p style={{ fontSize: '12px', color: '#78716c', margin: '4px 0 0' }}>
+                  Mã giảm giá áp dụng tự động cho tài khoản của bạn khi chốt đơn
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {[
+                  { code: 'SMART500K', desc: 'Giảm ngay 500.000₫ cho đơn hàng công nghệ từ 15.000.000₫', tag: 'HOT DEAL' },
+                  { code: 'FREESHIP', desc: 'Miễn phí giao hàng toàn quốc 100% cho đơn từ 2.000.000₫', tag: 'FREESHIP' },
+                  { code: 'NEWMEMBER', desc: 'Ưu đãi giảm 5% cho thành viên mới đặt đơn hàng đầu tiên', tag: 'MEMBER' },
+                  { code: 'VIPTECH', desc: 'Giảm 300.000₫ khi mua Phụ kiện cao cấp & Phụ kiện Laptop', tag: 'ACCESSORY' },
+                ].map((vc, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      border: '1.5px dashed #f59e0b',
+                      borderRadius: '10px',
+                      padding: '12px 14px',
+                      background: '#fffbeb',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <strong style={{ fontSize: '14px', color: '#b45309', fontFamily: 'monospace', letterSpacing: '0.5px' }}>
+                          {vc.code}
+                        </strong>
+                        <span style={{ fontSize: '9px', background: '#f59e0b', color: '#fff', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                          {vc.tag}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#78350f' }}>{vc.desc}</div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(vc.code)
+                        onNotify?.(`📋 Đã sao chép mã "${vc.code}" vào bộ nhớ tạm!`)
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#ffffff',
+                        border: '1px solid #f59e0b',
+                        color: '#b45309',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Sao chép mã
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: KHÁCH HÀNG THÂN THIẾT (VÍ XU & ĐIỂM DANH) */}
+          {activeTab === 'loyalty' && (
+            <div>
+              <div style={{ marginBottom: '16px', borderBottom: '1px solid #f1f5f3', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1c1917', margin: 0 }}>
+                  Khách hàng thân thiết &amp; Ví Xu
+                </h3>
+                <p style={{ fontSize: '12px', color: '#78716c', margin: '4px 0 0' }}>
+                  Tích lũy SmartStock Xu trên mỗi đơn hàng và nhận thưởng mỗi ngày
+                </p>
+              </div>
+
+              {/* THẺ SỐ DƯ VÍ XU */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                  border: '1.5px solid #fde68a',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  marginBottom: '18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '20px' }}>🪙</span>
+                    <strong style={{ fontSize: '13px', color: '#92400e' }}>Ví Xu Tích Lũy SmartStock</strong>
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#b45309', margin: '6px 0 2px' }}>
+                    {coins.toLocaleString('vi-VN')} <span style={{ fontSize: '14px', fontWeight: 600 }}>Xu</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#78350f' }}>
+                    Tương đương <strong>{formatVND(coins)}</strong> trừ thẳng vào thanh toán mọi đơn hàng.
+                  </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={handleUseCurrentLocation}
-                  disabled={locating}
+                  onClick={handleDailyCheckin}
+                  disabled={isCheckedInToday}
                   style={{
-                    background: '#fff2ed',
-                    color: '#ea580c',
-                    border: '1px solid #fed7aa',
-                    borderRadius: '6px',
-                    padding: '0 10px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
+                    background: isCheckedInToday ? '#e2e8f0' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: isCheckedInToday ? '#64748b' : '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 16px',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    cursor: isCheckedInToday ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    whiteSpace: 'nowrap',
-                    height: '36px',
+                    gap: '6px',
                   }}
-                  title="Tự động lấy vị trí GPS thực tế của bạn"
                 >
-                  {locating ? <RefreshCw size={12} className="spin" /> : <span>🎯</span>}
-                  <span>{locating ? 'Đang dò GPS...' : 'Dùng vị trí hiện tại'}</span>
+                  <span>{isCheckedInToday ? '✓ Đã điểm danh hôm nay' : '🎁 Điểm danh nhận +10.000 Xu'}</span>
                 </button>
               </div>
 
-              {/* Autocomplete Dropdown */}
-              {showDropdown && suggestions.length > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    zIndex: 9999,
-                    background: '#ffffff',
-                    border: '1px solid #dce5df',
-                    borderRadius: '8px',
-                    boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
-                    marginTop: '4px',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                  }}
-                >
-                  {suggestions.map((item, idx) => (
+              {/* QUYỀN LỢI HẠNG THÀNH VIÊN */}
+              <div>
+                <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#1c1917', marginBottom: '8px' }}>
+                  Bảng quyền lợi Hạng thành viên
+                </h4>
+                <div style={{ display: 'grid', gap: '6px' }}>
+                  {[
+                    { tier: '🌱 Thành viên Mới', spend: 'Dưới 1.000.000₫', perk: 'Tích 1% Xu trên mỗi đơn hàng thành công' },
+                    { tier: '🥈 VIP Bạc', spend: 'Từ 1.000.000₫', perk: 'Giảm thêm 2% trực tiếp trên mọi đơn hàng' },
+                    { tier: '🥇 VIP Vàng', spend: 'Từ 20.000.000₫', perk: 'Giảm thêm 3% trực tiếp + Quà sinh nhật VIP' },
+                    { tier: '💎 VIP Kim Cương', spend: 'Từ 50.000.000₫', perk: 'Giảm thêm 5% + Miễn phí vận chuyển hỏa tốc trọn đời' },
+                  ].map((row, idx) => (
                     <div
                       key={idx}
-                      onClick={() => handleSelectSuggestion(item)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
+                        justifyContent: 'space-between',
                         padding: '8px 12px',
-                        cursor: 'pointer',
-                        borderBottom: idx === suggestions.length - 1 ? 'none' : '1px solid #f1f5f3',
+                        background: '#f8faf9',
+                        borderRadius: '6px',
+                        border: '1px solid #e7e5e4',
                         fontSize: '11px',
-                        transition: 'background 0.15s ease',
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f8faf9'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
                     >
-                      <span style={{ fontSize: '14px', flexShrink: 0 }}>📍</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, color: '#1f332f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {item.name}
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#687771', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {item.detail}
-                        </div>
-                      </div>
+                      <strong style={{ color: '#1c1917', width: '130px' }}>{row.tier}</strong>
+                      <span style={{ color: '#78716c', width: '110px' }}>{row.spend}</span>
+                      <span style={{ color: '#059669', fontWeight: 600, flex: 1, textAlign: 'right' }}>{row.perk}</span>
                     </div>
                   ))}
                 </div>
-              )}
+              </div>
             </div>
+          )}
 
-            {/* Gợi ý địa chỉ nhanh (Bitexco, Landmark, Phố Đi Bộ) */}
+          {/* TAB 6: THÔNG BÁO & HỘP THƯ */}
+          {activeTab === 'notifications' && (
             <div>
-              <div style={{ fontSize: '10px', color: '#7a8c85', marginBottom: '4px' }}>Địa điểm phổ biến (bấm để ghim tức thì):</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {POPULAR_PROFILE_LANDMARKS.map((item, idx) => (
-                  <button
+              <div style={{ marginBottom: '16px', borderBottom: '1px solid #f1f5f3', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1c1917', margin: 0 }}>
+                  Thông báo &amp; Hộp thư
+                </h3>
+                <p style={{ fontSize: '12px', color: '#78716c', margin: '4px 0 0' }}>
+                  Cập nhật trạng thái đơn hàng, ưu đãi và tin nhắn từ SmartStock
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {[
+                  {
+                    title: '🎉 Chào mừng bạn gia nhập SmartStock Storefront!',
+                    time: 'Vừa xong',
+                    content: 'Bạn đã kích hoạt thành công tài khoản khách hàng. Hãy khám phá ngay 8 Deal Hot tại khu vực Flash Sale hôm nay.',
+                  },
+                  {
+                    title: '🪙 Nhận ngay 10.000 Xu mỗi ngày khi điểm danh',
+                    time: 'Hôm nay',
+                    content: 'Vào mục "Khách hàng thân thiết" mỗi ngày bấm Điểm danh để tích lũy Xu giảm thẳng vào giá trị đơn hàng.',
+                  },
+                  {
+                    title: '🛡️ Bảo hành chính hãng 12 tháng tự động kích hoạt',
+                    time: 'Hệ thống',
+                    content: 'Mọi thiết bị điện thoại, laptop, phụ kiện mua trên website đều được lưu vết bảo hành điện tử chính hãng bằng số điện thoại.',
+                  },
+                ].map((notif, idx) => (
+                  <div
                     key={idx}
-                    type="button"
-                    onClick={() => handleSelectLandmark(item)}
                     style={{
-                      fontSize: '10px',
-                      padding: '4px 9px',
-                      borderRadius: '5px',
+                      border: '1px solid #e7e5e4',
+                      borderRadius: '8px',
+                      padding: '12px',
                       background: '#ffffff',
-                      border: '1px solid #d1ded8',
-                      cursor: 'pointer',
-                      color: '#1f332f',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#F06449'
-                      e.currentTarget.style.color = '#F06449'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#d1ded8'
-                      e.currentTarget.style.color = '#1f332f'
                     }}
                   >
-                    <span>📍</span>
-                    <span>{item.name}</span>
-                  </button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <strong style={{ fontSize: '12px', color: '#1c1917' }}>{notif.title}</strong>
+                      <span style={{ fontSize: '10px', color: '#a8a29e' }}>{notif.time}</span>
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#687771', margin: 0, lineHeight: 1.4 }}>
+                      {notif.content}
+                    </p>
+                  </div>
                 ))}
               </div>
             </div>
-
-            {/* Khung bản đồ tương tác (Interactive Map 200px) */}
-            <div
-              style={{
-                borderRadius: '8px',
-                overflow: 'hidden',
-                border: '1px solid #dce5df',
-                background: '#f8fafc',
-                position: 'relative',
-              }}
-            >
-              {/* Thanh trạng thái / Gợi ý tương tác */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '5px 10px',
-                  background: '#f1f5f3',
-                  borderBottom: '1px solid #e2ebe6',
-                  fontSize: '10px',
-                  color: '#475569',
-                }}
-              >
-                <span>
-                  {reverseLoading ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ea580c', fontWeight: 600 }}>
-                      <RefreshCw size={10} className="spin" /> Đang cập nhật địa chỉ từ điểm ghim...
-                    </span>
-                  ) : (
-                    <span>💡 <strong>Click bản đồ</strong> hoặc <strong>kéo thả ghim đỏ</strong> để chọn đúng vị trí</span>
-                  )}
-                </span>
-                <span style={{ fontSize: '9px', opacity: 0.8, fontFamily: 'monospace' }}>
-                  [{coords.lat.toFixed(4)}, {coords.lon.toFixed(4)}]
-                </span>
-              </div>
-
-              {/* Container bản đồ Leaflet chiều cao đúng 200px */}
-              <div
-                ref={mapContainerRef}
-                style={{
-                  width: '100%',
-                  height: '200px',
-                  display: leafletReady ? 'block' : 'none',
-                }}
-              />
-
-              {/* Fallback iframe nếu Leaflet đang nạp */}
-              {!leafletReady && (
-                <iframe
-                  title="Bản đồ giao hàng"
-                  loading="lazy"
-                  style={{ width: '100%', height: '200px', border: 0, display: 'block' }}
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(defaultAddress || 'Việt Nam')}&hl=vi&z=16&output=embed`}
-                />
-              )}
-            </div>
-
-            {/* Nút Submit Lưu */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-              <button
-                type="submit"
-                className="button primary"
-                style={{
-                  background: '#1E3A2F',
-                  borderColor: '#1E3A2F',
-                  height: '36px',
-                  padding: '0 16px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: 'pointer',
-                  borderRadius: '6px',
-                  color: '#fff',
-                }}
-              >
-                <Check size={15} />
-                <span>✓ Lưu địa chỉ mặc định</span>
-              </button>
-            </div>
-          </form>
+          )}
         </div>
       </div>
     </div>

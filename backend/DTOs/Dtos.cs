@@ -15,7 +15,7 @@ public record RegisterRequest(
     [Phone(ErrorMessage = "Số điện thoại không đúng định dạng")][StringLength(20)] string? Phone,
     [StringLength(20)] string Role = "staff");
 
-public record AuthResponse(string Token, string Role, string FullName, string Email, int UserId);
+public record AuthResponse(string Token, string Role, string FullName, string Email, int UserId, string? Username = null, string? Phone = null);
 
 public record ChangePasswordRequest(
     [Required(ErrorMessage = "Mật khẩu hiện tại không được để trống")][StringLength(100)] string CurrentPassword,
@@ -129,28 +129,78 @@ public record ModerateProductReviewRequest(bool IsApproved);
 
 public record ReplyProductReviewRequest([StringLength(1000)] string? AdminReply);
 
-public record CreateProductRequest(
-    [Required(ErrorMessage = "Tên sản phẩm không được để trống")][StringLength(200, ErrorMessage = "Tên sản phẩm không vượt quá 200 ký tự")] string Name,
-    [StringLength(1000, ErrorMessage = "Mô tả không vượt quá 1000 ký tự")] string? Description,
-    [Range(0, 10000000000, ErrorMessage = "Giá bán không hợp lệ")] decimal Price,
-    [Range(0, 10000000000, ErrorMessage = "Giá vốn không hợp lệ")] decimal CostPrice,
-    [Range(0, int.MaxValue, ErrorMessage = "Số lượng không được âm")] int Quantity,
-    [Range(0, int.MaxValue, ErrorMessage = "Tồn kho tối thiểu không được âm")] int MinStock,
-    [StringLength(50, ErrorMessage = "Đơn vị tính không quá 50 ký tự")] string? Unit,
-    [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn danh mục hợp lệ")] int CategoryId,
-    int? SupplierId);
+public class CreateProductRequest
+{
+    [Required(ErrorMessage = "Tên sản phẩm không được để trống")]
+    [StringLength(200, ErrorMessage = "Tên sản phẩm không vượt quá 200 ký tự")]
+    public string Name { get; set; } = string.Empty;
 
-public record UpdateProductRequest(
-    [Required(ErrorMessage = "Tên sản phẩm không được để trống")][StringLength(200, ErrorMessage = "Tên sản phẩm không vượt quá 200 ký tự")] string Name,
-    [StringLength(1000, ErrorMessage = "Mô tả không vượt quá 1000 ký tự")] string? Description,
-    [Range(0, 10000000000, ErrorMessage = "Giá bán không hợp lệ")] decimal Price,
-    [Range(0, 10000000000, ErrorMessage = "Giá vốn không hợp lệ")] decimal CostPrice,
-    [Range(0, int.MaxValue, ErrorMessage = "Số lượng không được âm")] int Quantity,
-    [Range(0, int.MaxValue, ErrorMessage = "Tồn kho tối thiểu không được âm")] int MinStock,
-    [StringLength(50, ErrorMessage = "Đơn vị tính không quá 50 ký tự")] string? Unit,
-    [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn danh mục hợp lệ")] int CategoryId,
-    int? SupplierId,
-    [Required(ErrorMessage = "Trạng thái không được để trống")][StringLength(20)] string Status);
+    [StringLength(1000, ErrorMessage = "Mô tả không vượt quá 1000 ký tự")]
+    public string? Description { get; set; }
+
+    [Range(0, 10000000000, ErrorMessage = "Giá bán không hợp lệ")]
+    public decimal Price { get; set; }
+
+    [Range(0, 10000000000, ErrorMessage = "Giá vốn không hợp lệ")]
+    public decimal CostPrice { get; set; }
+
+    [Range(0, int.MaxValue, ErrorMessage = "Số lượng không được âm")]
+    public int Quantity { get; set; }
+
+    [Range(0, int.MaxValue, ErrorMessage = "Tồn kho tối thiểu không được âm")]
+    public int MinStock { get; set; } = 5;
+
+    [StringLength(50, ErrorMessage = "Đơn vị tính không quá 50 ký tự")]
+    public string? Unit { get; set; } = "cái";
+
+    [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn danh mục hợp lệ")]
+    public int CategoryId { get; set; }
+
+    public int? SupplierId { get; set; }
+    public string? ProductCode { get; set; }
+    public string? Image { get; set; }
+    public string? ImageUrl { get; set; }
+    public string? EffectiveImage => !string.IsNullOrWhiteSpace(Image) ? Image : ImageUrl;
+}
+
+public class UpdateProductRequest
+{
+    [Required(ErrorMessage = "Tên sản phẩm không được để trống")]
+    [StringLength(200, ErrorMessage = "Tên sản phẩm không vượt quá 200 ký tự")]
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(1000, ErrorMessage = "Mô tả không vượt quá 1000 ký tự")]
+    public string? Description { get; set; }
+
+    [Range(0, 10000000000, ErrorMessage = "Giá bán không hợp lệ")]
+    public decimal Price { get; set; }
+
+    [Range(0, 10000000000, ErrorMessage = "Giá vốn không hợp lệ")]
+    public decimal CostPrice { get; set; }
+
+    [Range(0, int.MaxValue, ErrorMessage = "Số lượng không được âm")]
+    public int Quantity { get; set; }
+
+    [Range(0, int.MaxValue, ErrorMessage = "Tồn kho tối thiểu không được âm")]
+    public int MinStock { get; set; } = 5;
+
+    [StringLength(50, ErrorMessage = "Đơn vị tính không quá 50 ký tự")]
+    public string? Unit { get; set; } = "cái";
+
+    [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn danh mục hợp lệ")]
+    public int CategoryId { get; set; }
+
+    public int? SupplierId { get; set; }
+
+    [Required(ErrorMessage = "Trạng thái không được để trống")]
+    [StringLength(20)]
+    public string Status { get; set; } = "active";
+
+    public string? ProductCode { get; set; }
+    public string? Image { get; set; }
+    public string? ImageUrl { get; set; }
+    public string? EffectiveImage => !string.IsNullOrWhiteSpace(Image) ? Image : ImageUrl;
+}
 
 // Import
 public record ImportReceiptDto(int Id, string ReceiptCode, int SupplierId, string SupplierName,
@@ -180,7 +230,8 @@ public record UpdateImportRequest(
 public record OrderDto(int Id, string OrderCode, int? CustomerId, string? CustomerName,
     int EmployeeId, string EmployeeName, decimal TotalAmount, decimal Discount, decimal FinalAmount,
     decimal PaidAmount, string PaymentMethod, string Status, string? Note, DateTime CreatedAt,
-    List<OrderDetailDto> Details, List<PaymentDto> Payments);
+    List<OrderDetailDto> Details, List<PaymentDto> Payments,
+    string? CustomerPhone = null, string? CustomerEmail = null);
 
 public record OrderDetailDto(int Id, int ProductId, string ProductName, int Quantity, decimal Price, decimal Total, int ReturnedQuantity, string? Sku = null, string? Image = null);
 

@@ -600,6 +600,8 @@ public class OrderService(AppDbContext db) : IOrderService
             d.Id, d.ProductId, d.Product?.Name ?? "", d.Quantity, d.Price, d.Total, d.ReturnedQuantity,
             d.Product?.ProductCode, d.Product?.Image
         )).ToList(),
-        o.Payments.Select(p => new PaymentDto(p.Id, p.OrderId, o.OrderCode, p.Amount, p.PaymentMethod, p.TransactionCode, p.Note, p.EmployeeId, p.Employee?.FullName ?? "", p.CreatedAt)).ToList()
+        o.Payments.Select(p => new PaymentDto(p.Id, p.OrderId, o.OrderCode, p.Amount, p.PaymentMethod, p.TransactionCode, p.Note, p.EmployeeId, p.Employee?.FullName ?? "", p.CreatedAt)).ToList(),
+        o.Customer?.Phone,
+        o.Customer?.Email
     );
 }

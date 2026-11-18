@@ -39,6 +39,23 @@ export function setStoredUser(user) {
 export function clearAuth() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  try {
+    localStorage.removeItem('smartstock_default_address')
+    localStorage.removeItem('smartstock_guest_address')
+    localStorage.removeItem('smartstock_cart')
+    localStorage.removeItem('smartstock_wishlist')
+    localStorage.removeItem('smartstock_user_coins')
+    localStorage.removeItem('savedAddress')
+    localStorage.removeItem('checkoutInfo')
+    localStorage.removeItem('shippingAddress')
+    localStorage.removeItem('shipping_info')
+    // Xóa toàn bộ key lưu trữ đơn lẻ không hợp lệ
+    Object.keys(localStorage).forEach((k) => {
+      if (k.startsWith('smartstock_guest') || k === 'smartstock_user') {
+        localStorage.removeItem(k)
+      }
+    })
+  } catch {}
 }
 
 export async function apiRequest(endpoint, options = {}) {
@@ -101,8 +118,10 @@ export const api = {
       setToken(res.token)
       setStoredUser({
         userId: res.userId,
+        username: res.username,
         email: res.email,
         fullName: res.fullName,
+        phone: res.phone,
         role: res.role,
       })
     }
@@ -118,8 +137,10 @@ export const api = {
       setToken(res.token)
       setStoredUser({
         userId: res.userId,
+        username: res.username,
         email: res.email,
         fullName: res.fullName,
+        phone: res.phone,
         role: res.role,
       })
     }
@@ -1030,6 +1051,23 @@ export const api = {
     if (params.pageSize) query.set('pageSize', params.pageSize)
     const qs = query.toString()
     return apiRequest(`/customers${qs ? `?${qs}` : ''}`)
+  },
+  async createCustomer(data) {
+    return apiRequest('/customers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+  async updateCustomer(id, data) {
+    return apiRequest(`/customers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+  async deleteCustomer(id) {
+    return apiRequest(`/customers/${id}`, {
+      method: 'DELETE',
+    })
   },
 
   // --- USERS (Admin Only) ---

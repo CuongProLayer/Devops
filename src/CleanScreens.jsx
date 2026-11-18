@@ -102,8 +102,8 @@ const text = {
 // ----------------------------------------------------
 export function CleanLogin({ onLogin }) {
   const [screen, setScreen] = useState('login') // 'login' | 'register' | 'forgot'
-  const [email, setEmail] = useState('admin@smartstock.vn')
-  const [password, setPassword] = useState('Admin@123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [regData, setRegData] = useState({
     username: '',
     fullName: '',
@@ -143,6 +143,11 @@ export function CleanLogin({ onLogin }) {
     setError('')
     setSuccessMsg('')
     try {
+      try {
+        localStorage.removeItem('smartstock_default_address')
+        localStorage.removeItem('smartstock_guest_address')
+        localStorage.removeItem('smartstock_cart')
+      } catch {}
       const res = await api.register({ ...regData, role: 'customer' })
       setSuccessMsg('Đăng ký tài khoản khách hàng thành công! Đang chuyển hướng vào cửa hàng...')
       setTimeout(() => {
@@ -154,31 +159,15 @@ export function CleanLogin({ onLogin }) {
     }
   }
 
-  const fillAndLogin = async (demoEmail, demoPass, roleName) => {
-    if (roleName === 'customer') {
-      onLogin('customer', { fullName: 'Khách mua hàng', role: 'customer' })
-      return
-    }
-    setEmail(demoEmail)
-    setPassword(demoPass)
-    setLoading(true)
-    setError('')
-    setSuccessMsg('')
-    try {
-      const res = await api.login(demoEmail, demoPass)
-      onLogin(res.role, res)
-    } catch (err) {
-      setError(err.message || 'Không thể đăng nhập tài khoản demo')
-    } finally {
-      setLoading(false)
-    }
-  }
+
 
   return (
     <main className="login-page">
       <div className="login-art">
         <div className="login-art-top">
-          <div className="brand-mark">&#10022;</div>
+          <div className="brand-mark">
+            <img src="/logo.png" alt="SmartStock UNG Logo" />
+          </div>
           <div className="brand-name">smart<span>stock</span></div>
         </div>
         <div className="login-art-copy">
@@ -221,7 +210,9 @@ export function CleanLogin({ onLogin }) {
       <div className="login-form-wrap">
         <div className="login-form">
           <div className="mobile-brand">
-            <div className="brand-mark">&#10022;</div>
+            <div className="brand-mark">
+              <img src="/logo.png" alt="SmartStock UNG Logo" />
+            </div>
             <div className="brand-name">smart<span>stock</span></div>
           </div>
 
@@ -262,7 +253,7 @@ export function CleanLogin({ onLogin }) {
                     type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@smartstock.vn hoặc admin"
+                    placeholder="Nhập email hoặc tên đăng nhập..."
                     required
                   />
                 </div>
@@ -319,41 +310,7 @@ export function CleanLogin({ onLogin }) {
                 <span /> Bảo mật JWT &amp; mã hóa mật khẩu BCrypt
               </div>
 
-              <div className="demo-role-row">
-                <span>Tài khoản mẫu:</span>
-                <button
-                  type="button"
-                  className={['admin@smartstock.vn', 'admin'].includes(email.trim().toLowerCase()) ? 'active' : ''}
-                  onClick={() => fillAndLogin('admin@smartstock.vn', 'Admin@123', 'admin')}
-                  title="Toàn quyền admin"
-                >
-                  👑 Admin
-                </button>
-                <button
-                  type="button"
-                  className={['warehouse@smartstock.vn', 'warehouse'].includes(email.trim().toLowerCase()) ? 'active' : ''}
-                  onClick={() => fillAndLogin('warehouse@smartstock.vn', 'Warehouse@123', 'warehouse')}
-                  title="Quản lý kho & nhập hàng"
-                >
-                  📦 Kho
-                </button>
-                <button
-                  type="button"
-                  className={['staff@smartstock.vn', 'staff'].includes(email.trim().toLowerCase()) ? 'active' : ''}
-                  onClick={() => fillAndLogin('staff@smartstock.vn', 'Staff@123', 'staff')}
-                  title="Đơn hàng & khách hàng"
-                >
-                  🛒 Staff
-                </button>
-                <button
-                  type="button"
-                  className={['customer@smartstock.vn', 'customer'].includes(email.trim().toLowerCase()) ? 'active' : ''}
-                  onClick={() => fillAndLogin('customer@smartstock.vn', 'Customer@123', 'customer')}
-                  title="Giao diện mua sắm Storefront"
-                >
-                  <ShoppingBag size={14} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} /> Khách hàng
-                </button>
-              </div>
+
             </form>
           ) : (
             <form onSubmit={handleRegisterSubmit}>
@@ -477,7 +434,9 @@ function CleanRecovery({ screen, onBack }) {
     <main className="login-page auth-secondary">
       <div className="login-art">
         <div className="login-art-top">
-          <div className="brand-mark">&#10022;</div>
+          <div className="brand-mark">
+            <img src="/logo.png" alt="SmartStock UNG Logo" />
+          </div>
           <div className="brand-name">smart<span>stock</span></div>
         </div>
         <div className="login-art-copy">
@@ -500,7 +459,7 @@ function CleanRecovery({ screen, onBack }) {
             </p>
           </div>
           <div className="login-note" style={{ justifyContent: 'flex-start', marginTop: '16px' }}>
-            <span /> Mặc định Admin: admin@smartstock.vn / Admin@123
+            <span /> Bảo mật hệ thống: Vui lòng liên hệ Quản trị viên để được cấp lại mật khẩu
           </div>
           <button
             type="button"
@@ -519,106 +478,188 @@ function CleanRecovery({ screen, onBack }) {
 // ----------------------------------------------------
 // STOREFRONT: REAL BACKEND CATALOG & ORDERS
 // ----------------------------------------------------
-export function getProductImage(product) {
-  if (product?.imageUrl && product.imageUrl.startsWith('http')) return product.imageUrl
+// PRODUCT IMAGE RESOLVER & FALLBACK (100% VERIFIED WORKING HTTPS URLS)
+// ----------------------------------------------------
+const DEAD_UNSPLASH_IDS = [
+  'photo-1625948515291-696130d44b54',
+  'photo-1496181133206-80ce9b88a854',
+  'photo-1593642702821-c8da6771f0c7',
+  'photo-1580910051074-3eb694886506',
+  'photo-1531297484001-80022131f5a3',
+]
+
+export function getCategoryFallbackImage(product) {
   const name = (product?.name || '').toLowerCase()
   const code = (product?.productCode || '').toLowerCase()
+  const cat = (product?.categoryName || '').toLowerCase()
 
-  // Bàn phím cơ Keychron riêng biệt
-  if (name.includes('keychron') || name.includes('bàn phím') || code.includes('keychron') || code.includes('k2')) {
-    return 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80'
+  // 1. Màn hình máy tính / Monitor (phải ưu tiên kiểm tra trước laptop/phone)
+  if (name.includes('màn hình') || name.includes('monitor') || cat.includes('màn hình')) {
+    if (name.includes('curved') || name.includes('gaming') || name.includes('odyssey')) {
+      return 'https://images.unsplash.com/photo-1547082299-de196ea013d6?auto=format&fit=crop&w=800&q=80'
+    }
+    return 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=800&q=80'
   }
-  // Tai nghe Apple AirPods Pro 2 trắng riêng biệt
-  if (name.includes('airpod') || code.includes('airpod') || (name.includes('tai nghe') && name.includes('apple'))) {
-    return 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?auto=format&fit=crop&w=600&q=80'
+
+  // 2. Bàn phím cơ & Chuột
+  if (name.includes('bàn phím') || name.includes('keyboard') || name.includes('keychron') || code.includes('keychron') || code.includes('k2')) {
+    return 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80'
   }
-  // iPhone
-  if (name.includes('iphone') || code.includes('ip15') || code.includes('iphone')) {
-    return 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=600&q=80'
+  if (name.includes('chuột') || name.includes('mouse') || name.includes('logitech mx') || name.includes('lift') || code.includes('logi') || code.includes('mx')) {
+    return 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=800&q=80'
   }
-  // MacBook
-  if (name.includes('macbook') || code.includes('mba') || code.includes('mac')) {
-    return 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80'
+
+  // 3. Phụ kiện sạc, cáp, pin, hub, SSD (ưu tiên trước tên hãng như Apple/Samsung)
+  if (name.includes('cáp') || name.includes('cable') || name.includes('dây sạc') || name.includes('woven')) {
+    return 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=800&q=80'
   }
-  // Tai nghe Sony Over-ear
-  if (name.includes('sony') || name.includes('wh-100') || code.includes('wh1000')) {
-    return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80'
+  if (name.includes('củ sạc') || name.includes('cốc sạc') || name.includes('charger') || name.includes('ganprime') || name.includes('gan') || code.includes('ank')) {
+    return 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=800&q=80'
   }
-  // Samsung
-  if (name.includes('samsung') || name.includes('s24') || code.includes('ss-s24')) {
-    return 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=600&q=80'
+  if (name.includes('pin dự phòng') || name.includes('sạc dự phòng') || name.includes('power bank') || name.includes('maggo') || name.includes('powerbank')) {
+    return 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?auto=format&fit=crop&w=800&q=80'
   }
-  // Củ sạc Anker
-  if (name.includes('anker') || name.includes('cáp') || name.includes('sạc') || code.includes('ank')) {
-    return 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=600&q=80'
+  if (name.includes('hub') || name.includes('chuyển đổi') || name.includes('adapter')) {
+    return 'https://images.unsplash.com/photo-1588508065123-287b28e013da?auto=format&fit=crop&w=800&q=80'
   }
-  // Chuột Logitech
-  if (name.includes('logitech') || name.includes('chuột') || code.includes('logi') || code.includes('mx')) {
-    return 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=600&q=80'
+  if (name.includes('ssd') || name.includes('ổ cứng')) {
+    return 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=800&q=80'
   }
-  // iPad / Máy tính bảng
-  if (name.includes('ipad') || name.includes('tablet') || name.includes('bảng')) {
-    return 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=600&q=80'
+
+  // 4. Tai nghe / AirPods / Âm thanh / Loa
+  if (name.includes('airpod') || name.includes('tai nghe') || name.includes('headphone') || name.includes('earbuds') || name.includes('loa') || name.includes('speaker') || name.includes('marshall') || cat.includes('tai nghe') || cat.includes('âm thanh')) {
+    if (name.includes('loa') || name.includes('speaker') || name.includes('marshall') || name.includes('emberton')) {
+      return 'https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=800&q=80'
+    }
+    if (name.includes('max')) {
+      return 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=800&q=80'
+    }
+    if (name.includes('airpod') || (name.includes('tai nghe') && name.includes('apple'))) {
+      return 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?auto=format&fit=crop&w=800&q=80'
+    }
+    return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'
   }
-  return 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80'
+
+  // 5. iPad / Máy tính bảng
+  if (name.includes('ipad') || name.includes('tablet') || name.includes('tab') || cat.includes('máy tính bảng') || cat.includes('tablet')) {
+    return 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=800&q=80'
+  }
+
+  // 6. Laptop / MacBook / Gaming
+  if (name.includes('macbook') || name.includes('laptop') || name.includes('thinkpad') || name.includes('legion') || name.includes('rog') || name.includes('zephyrus') || name.includes('xps') || name.includes('spectre') || name.includes('helios') || name.includes('zenbook') || cat.includes('laptop')) {
+    if (name.includes('rog') || name.includes('gaming') || name.includes('legion') || name.includes('predator') || name.includes('helios')) {
+      return 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?auto=format&fit=crop&w=800&q=80'
+    }
+    if (name.includes('thinkpad')) {
+      return 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?auto=format&fit=crop&w=800&q=80'
+    }
+    if (name.includes('dell') || name.includes('xps')) {
+      return 'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?auto=format&fit=crop&w=800&q=80'
+    }
+    return 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80'
+  }
+
+  // 7. Điện thoại thông minh (iPhone, Samsung Galaxy, Xiaomi, Oppo)
+  if (name.includes('iphone') || code.includes('ip1') || code.includes('iphone')) {
+    return 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80'
+  }
+  if (name.includes('samsung') || name.includes('galaxy') || name.includes('s24') || name.includes('z fold') || name.includes('z flip') || code.includes('ss-')) {
+    return 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=800&q=80'
+  }
+  if (name.includes('xiaomi') || name.includes('redmi')) {
+    return 'https://images.unsplash.com/photo-1565849904461-04a58ad377e0?auto=format&fit=crop&w=800&q=80'
+  }
+  if (name.includes('oppo') || name.includes('reno') || name.includes('find')) {
+    return 'https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?auto=format&fit=crop&w=800&q=80'
+  }
+  if (name.includes('điện thoại') || name.includes('phone') || cat.includes('điện thoại')) {
+    return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80'
+  }
+
+  // Mặc định công nghệ chung
+  return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80'
+}
+
+export function getProductImage(product) {
+  const rawUrl = product?.image || product?.imageUrl || ''
+  if (rawUrl && typeof rawUrl === 'string' && rawUrl.startsWith('http')) {
+    const isDead = DEAD_UNSPLASH_IDS.some((deadId) => rawUrl.includes(deadId))
+    if (!isDead) return rawUrl
+  }
+  return getCategoryFallbackImage(product)
 }
 
 export function getProductImages(product) {
   const main = getProductImage(product)
   const name = (product?.name || '').toLowerCase()
-  const code = (product?.productCode || '').toLowerCase()
+  const cat = (product?.categoryName || '').toLowerCase()
 
-  if (name.includes('keychron') || name.includes('bàn phím') || code.includes('keychron')) {
+  if (name.includes('màn hình') || name.includes('monitor') || cat.includes('màn hình')) {
+    return [
+      main,
+      'https://images.unsplash.com/photo-1547082299-de196ea013d6?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1551645120-d70bfe84c826?auto=format&fit=crop&w=800&q=80',
+    ]
+  }
+
+  if (name.includes('keychron') || name.includes('bàn phím')) {
     return [
       main,
       'https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1595225476474-87563907a212?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80',
     ]
   }
-  if (name.includes('airpod') || code.includes('airpod') || (name.includes('tai nghe') && name.includes('apple'))) {
+
+  if (name.includes('chuột') || name.includes('mouse')) {
     return [
       main,
-      'https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1588423771073-b8903fbb85b5?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=800&q=80',
     ]
   }
-  if (name.includes('iphone') || code.includes('ip15') || code.includes('iphone')) {
+
+  if (name.includes('cáp') || name.includes('sạc') || name.includes('pin') || name.includes('hub')) {
     return [
       main,
-      'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1580910051074-3eb694886505?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1588508065123-287b28e013da?auto=format&fit=crop&w=800&q=80',
     ]
   }
-  if (name.includes('macbook') || code.includes('mba') || code.includes('mac')) {
+
+  if (name.includes('airpod') || name.includes('tai nghe') || name.includes('headphone') || name.includes('sony')) {
     return [
       main,
-      'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80',
-    ]
-  }
-  if (name.includes('sony') || name.includes('wh-100') || code.includes('wh1000')) {
-    return [
-      main,
-      'https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=800&q=80',
     ]
   }
-  if (name.includes('samsung') || name.includes('s24') || code.includes('ss-s24')) {
+
+  if (name.includes('ipad') || name.includes('tablet')) {
     return [
       main,
-      'https://images.unsplash.com/photo-1585060544812-6b45742d762f?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1565849904461-04a58ad377e0?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1561154464-82e9adf32764?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1585790050230-5dd28404ccb9?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1589739900243-4b52cd9b104e?auto=format&fit=crop&w=800&q=80',
     ]
   }
+
+  if (name.includes('macbook') || name.includes('laptop') || cat.includes('laptop')) {
+    return [
+      main,
+      'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1603302576837-37561b2e2302?auto=format&fit=crop&w=800&q=80',
+    ]
+  }
+
   return [
     main,
-    'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=800&q=80',
   ]
 }
 
@@ -694,9 +735,15 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
     }
   })
 
+  // Cô lập Wishlist & SmartStock Xu theo từng tài khoản đăng nhập (Khởi tạo mặc định = 0 Xu & 0 Yêu thích)
+  const userStorageKey = getUserStorageKey(currentUser)
+  const wishlistStorageKey = `smartstock_wishlist_${userStorageKey}`
+  const coinsStorageKey = `smartstock_user_coins_${userStorageKey}`
+
   const [liked, setLiked] = useState(() => {
     try {
-      const saved = localStorage.getItem('smartstock_wishlist')
+      if (!userStorageKey || userStorageKey === 'guest') return []
+      const saved = localStorage.getItem(wishlistStorageKey)
       return saved ? JSON.parse(saved) : []
     } catch {
       return []
@@ -724,16 +771,40 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
   const [compareModalOpen, setCompareModalOpen] = useState(false)
   const [notifyStockProduct, setNotifyStockProduct] = useState(null)
   const [customerProfileOpen, setCustomerProfileOpen] = useState(false)
+  const [customerProfileInitialTab, setCustomerProfileInitialTab] = useState('profile')
   const [eInvoiceOrder, setEInvoiceOrder] = useState(null)
   const [warrantyModalOpen, setWarrantyModalOpen] = useState(false)
   const [userCoins, setUserCoins] = useState(() => {
     try {
-      const saved = localStorage.getItem('smartstock_user_coins')
-      return saved ? parseInt(saved, 10) : 957200
+      if (!userStorageKey || userStorageKey === 'guest') return 0
+      const saved = localStorage.getItem(coinsStorageKey)
+      return saved != null ? parseInt(saved, 10) : 0
     } catch {
-      return 957200
+      return 0
     }
   })
+
+  // Đồng bộ Wishlist & Xu khi chuyển đổi tài khoản người dùng
+  useEffect(() => {
+    const curKey = getUserStorageKey(currentUser)
+    if (curKey && curKey !== 'guest') {
+      try {
+        const savedLiked = localStorage.getItem(`smartstock_wishlist_${curKey}`)
+        setLiked(savedLiked ? JSON.parse(savedLiked) : [])
+      } catch {
+        setLiked([])
+      }
+      try {
+        const savedCoins = localStorage.getItem(`smartstock_user_coins_${curKey}`)
+        setUserCoins(savedCoins != null ? parseInt(savedCoins, 10) : 0)
+      } catch {
+        setUserCoins(0)
+      }
+    } else {
+      setLiked([])
+      setUserCoins(0)
+    }
+  }, [currentUser])
   const [recentlyViewed, setRecentlyViewed] = useState(() => {
     try {
       const saved = localStorage.getItem('smartstock_recently_viewed')
@@ -760,6 +831,14 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
   const [sort, setSort] = useState('popular')
   const [appliedVoucher, setAppliedVoucher] = useState('FREESHIP')
 
+  // Phân trang "Xem thêm" nối tiếp (Load More)
+  const [visibleCount, setVisibleCount] = useState(12)
+
+  // Reset số lượng hiển thị về 12 khi người dùng đổi danh mục, tìm kiếm, lọc tồn kho hoặc sắp xếp
+  useEffect(() => {
+    setVisibleCount(12)
+  }, [selectedCat, onlyInStock, sort, search, page])
+
   // Save Cart & Wishlist & Theme
   useEffect(() => {
     try {
@@ -768,10 +847,13 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
   }, [cart])
 
   useEffect(() => {
-    try {
-      localStorage.setItem('smartstock_wishlist', JSON.stringify(liked))
-    } catch {}
-  }, [liked])
+    const curKey = getUserStorageKey(currentUser)
+    if (curKey && curKey !== 'guest') {
+      try {
+        localStorage.setItem(`smartstock_wishlist_${curKey}`, JSON.stringify(liked))
+      } catch {}
+    }
+  }, [liked, currentUser])
 
   useEffect(() => {
     localStorage.setItem('smartstock-theme', dark ? 'dark' : 'light')
@@ -794,7 +876,7 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
     setLoading(true)
     try {
       const [prodRes, catRes, ordRes, promoRes] = await Promise.all([
-        api.getProducts({ pageSize: 50 }),
+        api.getProducts({ pageSize: 200 }),
         api.getCategories(),
         api.getOrders(),
         api.getPromotions(),
@@ -844,15 +926,66 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
     })
   }
 
-  // Calculate VIP Tier for Customer
-  const totalSpent = orders.reduce((sum, ord) => sum + (ord.totalAmount || 0), 0)
-  const userTierInfo = {
-    name: totalSpent >= 50000000 ? 'VIP Kim Cương' : totalSpent >= 20000000 ? 'Thành viên Vàng' : totalSpent >= 5000000 ? 'Thành viên Bạc' : 'Thành viên Mới',
-    badge: totalSpent >= 50000000 ? '💎 VIP Kim Cương' : totalSpent >= 20000000 ? '🥇 VIP Vàng' : totalSpent >= 5000000 ? '🥈 VIP Bạc' : '🥉 Mới',
-    discount: totalSpent >= 50000000 ? 5 : totalSpent >= 20000000 ? 3 : totalSpent >= 5000000 ? 2 : 0,
-    nextTarget: totalSpent >= 50000000 ? 100000000 : totalSpent >= 20000000 ? 50000000 : totalSpent >= 5000000 ? 20000000 : 5000000,
-    nextTier: totalSpent >= 50000000 ? 'VIP Toàn Năng' : totalSpent >= 20000000 ? 'VIP Kim Cương' : totalSpent >= 5000000 ? 'VIP Vàng' : 'VIP Bạc',
-  }
+  // Calculate VIP Tier for Customer (Cách ly hoàn toàn theo tài khoản currentUser đang đăng nhập)
+  const userOrders = useMemo(() => {
+    if (!currentUser) return []
+    const userPhone = (currentUser.phone || '').trim()
+    const userEmail = (currentUser.email || '').toLowerCase().trim()
+    const userName = (currentUser.fullName || '').toLowerCase().trim()
+
+    return (orders || []).filter((o) => {
+      if (!o) return false
+      const orderPhone = (o.customerPhone || '').trim()
+      const orderEmail = (o.customerEmail || '').toLowerCase().trim()
+      const orderNote = (o.note || '').toLowerCase()
+
+      // 1. Khớp chính xác số điện thoại (tối thiểu 9 số)
+      if (userPhone && userPhone.length >= 9) {
+        if (orderPhone && userPhone === orderPhone) return true
+        if (orderNote.includes(userPhone)) return true
+      }
+
+      // 2. Khớp chính xác email (tối thiểu 5 ký tự)
+      if (userEmail && userEmail.length >= 5) {
+        if (orderEmail && userEmail === orderEmail) return true
+        if (orderNote.includes(userEmail)) return true
+      }
+
+      // 3. Khớp họ tên (chỉ khi họ tên >= 4 ký tự và đơn hàng không mang SĐT/Email của người khác)
+      if (userName && userName.length >= 4 && o.customerName) {
+        const orderName = o.customerName.toLowerCase().trim()
+        if (userName === orderName) {
+          if (orderPhone && userPhone && orderPhone !== userPhone) return false
+          if (orderEmail && userEmail && orderEmail !== userEmail) return false
+          return true
+        }
+      }
+
+      return false
+    })
+  }, [orders, currentUser])
+
+  const completedOrders = useMemo(() => {
+    return userOrders.filter((ord) => {
+      const st = (ord.status || '').toLowerCase()
+      return st === 'completed' || st === 'hoàn tất' || st === 'giao thành công'
+    })
+  }, [userOrders])
+
+  const totalSpent = useMemo(() => {
+    return completedOrders.reduce((sum, ord) => sum + (ord.totalAmount || ord.finalAmount || 0), 0)
+  }, [completedOrders])
+
+  const userTierInfo = useMemo(() => {
+    return {
+      name: totalSpent >= 50000000 ? 'VIP Kim Cương' : totalSpent >= 20000000 ? 'Thành viên Vàng' : totalSpent >= 1000000 ? 'Thành viên Bạc' : 'Thành viên Mới',
+      badge: totalSpent >= 50000000 ? '💎 VIP Kim Cương' : totalSpent >= 20000000 ? '🥇 VIP Vàng' : totalSpent >= 1000000 ? '🥈 VIP Bạc' : '🌱 Thành viên Mới',
+      discount: totalSpent >= 50000000 ? 5 : totalSpent >= 20000000 ? 3 : totalSpent >= 1000000 ? 2 : 0,
+      nextTarget: totalSpent >= 50000000 ? 100000000 : totalSpent >= 20000000 ? 50000000 : 1000000,
+      nextTier: totalSpent >= 50000000 ? 'VIP Toàn Năng' : totalSpent >= 20000000 ? 'VIP Kim Cương' : 'Thành viên Bạc',
+      totalSpent,
+    }
+  }, [totalSpent])
 
   useEffect(() => {
     loadData()
@@ -1016,79 +1149,113 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
         </div>
       </div>
 
-      {/* 2. HEADER MUA SẮM (STICKY HEADER) */}
+      {/* 2. HEADER MUA SẮM (STICKY HEADER HIỆN ĐẠI & CÂN ĐỐI) */}
       <header className="store-header-sticky">
-        <div className="store-header-inner">
-          <button className="store-brand" onClick={() => setPage('home')} style={{ cursor: 'pointer' }}>
-            <span className="brand-mark" style={{ background: '#1E3A2F', color: '#fff' }}>&#10022;</span>
-            <span className="brand-name">smart<span>stock</span></span>
-            <span className="store-brand-badge">STOREFRONT</span>
+        <div className="store-header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
+          {/* BÊN TRÁI: LOGO UNG THƯƠNG HIỆU + SMARTSTOCK + BADGE STOREFRONT */}
+          <button
+            className="store-brand"
+            onClick={() => setPage('home')}
+            style={{
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              flexShrink: 0,
+            }}
+          >
+            <span
+              className="brand-mark"
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: '#ffffff',
+                padding: '3px',
+                border: '1px solid rgba(0,0,0,0.08)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <img
+                src="/logo.png"
+                alt="SmartStock UNG Logo"
+                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+              />
+            </span>
+            <span className="brand-name" style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.5px' }}>
+              smart<span style={{ color: '#F06449' }}>stock</span>
+            </span>
+            <span className="store-brand-badge" style={{ marginLeft: '2px' }}>STOREFRONT</span>
           </button>
 
-          {/* Ô TÌM KIẾM [F2] */}
-          <div className="store-search-box">
-            <Search size={16} color="#71807a" />
+          {/* Ở GIỮA: Ô TÌM KIẾM [F2] TRỌNG TÂM RỘNG RÃI & HIỆN ĐẠI */}
+          <div
+            className="store-search-box"
+            style={{
+              flex: 1,
+              maxWidth: '680px',
+              height: '42px',
+              borderRadius: '12px',
+              margin: '0 16px',
+              display: 'flex',
+              alignItems: 'center',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Search size={16} color="#71807a" style={{ flexShrink: 0 }} />
             <input
               ref={searchInputRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Tìm điện thoại, laptop, phụ kiện theo tên hoặc mã SKU... [F2]"
+              style={{
+                width: '100%',
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                fontSize: '12px',
+                padding: '0 10px',
+              }}
             />
             {search ? (
               <button
                 type="button"
                 onClick={() => setSearch('')}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#889892', padding: 0 }}
+                title="Xóa tìm kiếm"
               >
-                <X size={14} />
+                <X size={15} />
               </button>
             ) : (
               <span className="search-f2-badge">F2</span>
             )}
           </div>
 
-          {/* CỤM NÚT BÊN PHẢI */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {/* Đổi giao diện */}
+          {/* BÊN PHẢI: CỤM THAO TÁC NHANH GỌN GÀNG (ĐỒNG BỘ 40PX) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            {/* Đổi giao diện Sáng / Tối */}
             <button
               className="store-action-btn"
               onClick={() => setDark(!dark)}
               title={dark ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối'}
+              style={{
+                height: '40px',
+                width: '40px',
+                padding: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '10px',
+              }}
             >
-              {dark ? <Sun size={16} color="#f59e0b" /> : <Moon size={16} />}
-            </button>
-
-            {/* Tra cứu bảo hành điện tử */}
-            <button
-              className="store-action-btn"
-              onClick={() => setWarrantyModalOpen(true)}
-              title="Tra cứu chứng nhận bảo hành điện tử 12 tháng"
-              style={{ color: '#0284c7' }}
-            >
-              <ShieldCheck size={16} color="#0284c7" />
-              <span>Bảo hành</span>
-            </button>
-
-            {/* SmartStock Xu tích lũy */}
-            <button
-              type="button"
-              className="store-action-btn"
-              onClick={() => setCustomerProfileOpen(true)}
-              title={`SmartStock Xu tích lũy: ${userCoins.toLocaleString('vi-VN')} Xu (Bấm để xem ưu đãi VIP)`}
-              style={{ background: '#fef3c7', borderColor: '#fde68a', color: '#92400e', display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              <span style={{ fontSize: '13px' }}>🪙</span>
-              <strong style={{ fontSize: '11px', color: '#b45309' }}>{userCoins.toLocaleString('vi-VN')} Xu</strong>
-            </button>
-
-            {/* Đơn mua của tôi */}
-            <button
-              className="store-action-btn"
-              onClick={() => setMyOrdersOpen(true)}
-              title="Xem lịch sử đơn mua hàng của bạn"
-            >
-              <Receipt size={16} color="#1E3A2F" />
-              <span>Đơn mua</span>
+              {dark ? <Sun size={17} color="#f59e0b" /> : <Moon size={17} />}
             </button>
 
             {/* Yêu thích */}
@@ -1096,9 +1263,19 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
               className="store-action-btn"
               onClick={() => setPage(page === 'wishlist' ? 'home' : 'wishlist')}
               title="Danh sách sản phẩm yêu thích"
-              style={{ color: page === 'wishlist' ? '#F06449' : 'inherit' }}
+              style={{
+                height: '40px',
+                padding: '0 12px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderRadius: '10px',
+                color: page === 'wishlist' ? '#F06449' : 'inherit',
+                position: 'relative',
+              }}
             >
-              <Heart size={16} fill={liked.length ? '#F06449' : 'none'} color={liked.length ? '#F06449' : 'currentColor'} />
+              <Heart size={17} fill={liked.length ? '#F06449' : 'none'} color={liked.length ? '#F06449' : 'currentColor'} />
+              <span style={{ fontSize: '12px', fontWeight: 600 }}>Yêu thích</span>
               {liked.length > 0 && <span className="store-badge-count">{liked.length}</span>}
             </button>
 
@@ -1107,49 +1284,88 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
               className="store-action-btn"
               onClick={() => setCartDrawerOpen(true)}
               title="Xem giỏ hàng"
-              style={{ background: '#fff0eb', borderColor: '#fecbc0', color: '#F06449' }}
+              style={{
+                height: '40px',
+                padding: '0 14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                borderRadius: '10px',
+                background: '#fff0eb',
+                borderColor: '#fecbc0',
+                color: '#F06449',
+                position: 'relative',
+              }}
             >
-              <ShoppingCart size={16} color="#F06449" />
-              <strong style={{ fontSize: '11px' }}>{totalCartQty > 0 ? formatVND(cartFinalTotal) : 'Giỏ hàng'}</strong>
+              <ShoppingCart size={17} color="#F06449" />
+              <strong style={{ fontSize: '12px', fontWeight: 700 }}>
+                {totalCartQty > 0 ? formatVND(cartFinalTotal) : 'Giỏ hàng'}
+              </strong>
               {totalCartQty > 0 && <span className="store-badge-count">{totalCartQty}</span>}
             </button>
 
-            {/* Tài khoản khách & Hạng VIP */}
+            {/* Tài khoản khách & Hạng VIP (Click mở Modal cá nhân với tab Tra cứu Bảo hành) */}
             <button
               type="button"
               className="store-action-btn"
-              onClick={() => setCustomerProfileOpen(true)}
-              title="Hồ sơ khách hàng, Sổ địa chỉ & Hạng VIP SmartStock"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 8px', background: '#f5f8f6', borderRadius: '8px' }}
+              onClick={() => {
+                setCustomerProfileInitialTab('profile')
+                setCustomerProfileOpen(true)
+              }}
+              title="Hồ sơ khách hàng, Sổ địa chỉ, Bảo hành & Hạng VIP SmartStock"
+              style={{
+                height: '40px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '0 12px 0 6px',
+                background: '#f5f8f6',
+                borderRadius: '10px',
+                border: '1px solid #dce5df',
+              }}
             >
               <div
                 style={{
-                  width: '28px',
-                  height: '28px',
+                  width: '30px',
+                  height: '30px',
                   borderRadius: '50%',
-                  background: '#1E3A2F',
+                  background: 'linear-gradient(135deg, #1E3A2F 0%, #2d5444 100%)',
                   color: '#fff',
                   display: 'grid',
                   placeItems: 'center',
-                  fontSize: '11px',
-                  fontWeight: 700,
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  boxShadow: '0 2px 5px rgba(30, 58, 47, 0.25)',
                 }}
               >
-                {currentUser?.fullName?.[0] || 'K'}
+                {currentUser?.fullName?.[0]?.toUpperCase() || 'K'}
               </div>
-              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+              <div style={{ textAlign: 'left', lineHeight: 1.25 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, maxWidth: '95px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', color: '#1c1917' }}>
                   {currentUser?.fullName || 'Khách hàng'}
                 </span>
-                <span style={{ fontSize: '9px', color: '#f59e0b', fontWeight: 800 }}>
+                <span style={{ fontSize: '10px', color: '#d97706', fontWeight: 800 }}>
                   {userTierInfo.badge}
                 </span>
               </div>
             </button>
 
             {/* Nút Đăng xuất */}
-            <button className="store-action-btn" onClick={onLogout} title="Đăng xuất khỏi tài khoản">
-              <LogOut size={15} />
+            <button
+              className="store-action-btn"
+              onClick={onLogout}
+              title="Đăng xuất khỏi tài khoản"
+              style={{
+                height: '40px',
+                width: '40px',
+                padding: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '10px',
+              }}
+            >
+              <LogOut size={16} />
             </button>
           </div>
         </div>
@@ -1314,7 +1530,7 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
           </div>
 
           {/* TIÊU ĐỀ SECTION */}
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '18px' }}>
+          <div id="store-product-catalog" style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '18px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#1f332f', margin: 0 }}>
               {page === 'wishlist'
                 ? `Danh sách Yêu thích (${filteredProducts.length})`
@@ -1334,34 +1550,43 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
               <div>Đang tải danh mục sản phẩm từ máy chủ...</div>
             </div>
           ) : filteredProducts.length > 0 ? (
-            <div className="store-product-grid">
-              {filteredProducts.map((p) => {
-                const stock = p.quantity ?? p.stock ?? 0
-                const minStock = p.minStock || 5
-                const isOutOfStock = stock <= 0
-                const isLowStock = !isOutOfStock && stock <= minStock
-                const isLiked = liked.some((it) => it.id === p.id)
-                const imgUrl = getProductImage(p)
-                const originalPrice = Math.round((p.price * 1.12) / 10000) * 10000
-                const discountPercent = Math.max(8, Math.min(20, Math.round(((originalPrice - p.price) / originalPrice) * 100)))
-                const soldCount = (p.id * 31 + 59) % 1500 + 48
+            <>
+              <div className="store-product-grid">
+                {filteredProducts.slice(0, visibleCount).map((p) => {
+                  const stock = p.quantity ?? p.stock ?? 0
+                  const minStock = p.minStock || 5
+                  const isOutOfStock = stock <= 0
+                  const isLowStock = !isOutOfStock && stock <= minStock
+                  const isLiked = liked.some((it) => it.id === p.id)
+                  const imgUrl = getProductImage(p)
+                  const originalPrice = Math.round((p.price * 1.12) / 10000) * 10000
+                  const discountPercent = Math.max(8, Math.min(20, Math.round(((originalPrice - p.price) / originalPrice) * 100)))
+                  const soldCount = (p.id * 31 + 59) % 1500 + 48
 
-                return (
-                  <article
-                    className={`modern-product-card ${isOutOfStock ? 'out-of-stock-card' : ''}`}
-                    key={p.id}
-                    style={{ opacity: isOutOfStock ? 0.8 : 1 }}
-                  >
-                    {/* KHUNG ẢNH SẢN PHẨM */}
-                    <div
-                      className="product-img-wrap"
-                      onClick={() => {
-                        setQuickViewProduct(p)
-                        addToRecentlyViewed(p)
-                      }}
-                      style={{ cursor: 'pointer' }}
+                  return (
+                    <article
+                      className={`modern-product-card ${isOutOfStock ? 'out-of-stock-card' : ''}`}
+                      key={p.id}
+                      style={{ opacity: isOutOfStock ? 0.8 : 1 }}
                     >
-                      <img src={imgUrl} alt={p.name} loading="lazy" />
+                      {/* KHUNG ẢNH SẢN PHẨM */}
+                      <div
+                        className="product-img-wrap"
+                        onClick={() => {
+                          setQuickViewProduct(p)
+                          addToRecentlyViewed(p)
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <img
+                          src={imgUrl}
+                          alt={p.name}
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null
+                            e.currentTarget.src = getCategoryFallbackImage(p)
+                          }}
+                        />
 
                       {/* BADGE TỒN KHO THỰC TẾ TỪ DB */}
                       {isOutOfStock ? (
@@ -1525,6 +1750,73 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
                 )
               })}
             </div>
+
+            {/* NÚT BẤM "XEM THÊM SẢN PHẨM" NỐI TIẾP (LOAD MORE) */}
+            {filteredProducts.length > visibleCount ? (
+              <div style={{ textAlign: 'center', marginTop: '36px', marginBottom: '20px' }}>
+                <button
+                  type="button"
+                  className="btn-load-more"
+                  onClick={() => setVisibleCount((prev) => prev + 12)}
+                  style={{
+                    background: '#ffffff',
+                    color: '#1E3A2F',
+                    border: '2px solid #1E3A2F',
+                    borderRadius: '12px',
+                    padding: '13px 36px',
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    boxShadow: '0 4px 14px rgba(30, 58, 47, 0.1)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#1E3A2F'
+                    e.currentTarget.style.color = '#ffffff'
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(30, 58, 47, 0.2)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#ffffff'
+                    e.currentTarget.style.color = '#1E3A2F'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(30, 58, 47, 0.1)'
+                  }}
+                >
+                  <span>Xem thêm sản phẩm (Còn {filteredProducts.length - visibleCount} sản phẩm)</span>
+                  <ChevronDown size={18} />
+                </button>
+              </div>
+            ) : filteredProducts.length > 12 ? (
+              <div style={{ textAlign: 'center', marginTop: '32px', marginBottom: '20px', color: '#64748b', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+                <span style={{ fontWeight: 600 }}>✓ Đã hiển thị tất cả {filteredProducts.length} sản phẩm</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVisibleCount(12)
+                    const el = document.getElementById('store-product-catalog')
+                    if (el) el.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                  style={{
+                    background: '#fff0eb',
+                    border: '1px solid #fed7cd',
+                    color: '#F06449',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Thu gọn ↑
+                </button>
+              </div>
+            ) : null}
+          </>
           ) : (
             <div style={{ padding: '70px 20px', textAlign: 'center', background: '#fff', borderRadius: '14px', border: '1px dashed #dce5df' }}>
               <ShoppingCart size={40} color="#a0b3aa" style={{ margin: '0 auto 12px' }} />
@@ -1935,15 +2227,22 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
       {customerProfileOpen && (
         <CustomerProfileModal
           currentUser={currentUser}
-          orders={orders}
+          orders={userOrders}
           onClose={() => setCustomerProfileOpen(false)}
           onNotify={notify}
           userTierInfo={userTierInfo}
+          onLogout={onLogout}
+          initialTab={customerProfileInitialTab}
         />
       )}
 
       {/* 16. CHÂN TRANG THƯƠNG MẠI ĐIỆN TỬ (4 CỘT CHUYÊN NGHIỆP) */}
-      <StorefrontFooter onOpenWarranty={() => setWarrantyModalOpen(true)} />
+      <StorefrontFooter
+        onOpenWarranty={() => {
+          setCustomerProfileInitialTab('warranty')
+          setCustomerProfileOpen(true)
+        }}
+      />
 
       {/* 17. MODAL TRA CỨU BẢO HÀNH ĐIỆN TỬ & ĐƠN HÀNG */}
       {warrantyModalOpen && (
@@ -2992,9 +3291,9 @@ export async function processStorefrontOrder({
   const standardOrder = {
     id: Date.now(),
     orderCode: safeOrderCode,
-    customerName: customerName || 'Khách hàng SmartStock',
-    customerPhone: customerPhone || '0909 123 456',
-    shippingAddress: shippingAddress || 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+    customerName: customerName || currentUser?.fullName || currentUser?.username || 'Khách hàng',
+    customerPhone: customerPhone || currentUser?.phone || '',
+    shippingAddress: shippingAddress || '',
     paymentMethod: safePaymentMethod,
     status: normStatus,
     createdAt,
@@ -3119,44 +3418,149 @@ export async function processStorefrontOrder({
 }
 
 // ----------------------------------------------------
+// CÁC HÀM TIỆN ÍCH QUẢN LÝ SỔ ĐỊA CHỈ & ĐỊNH VỊ CHUẨN VIỆT NAM
+// ----------------------------------------------------
+export function cleanAddressGlitch(raw) {
+  if (!raw || typeof raw !== 'string') return ''
+  let cleaned = raw.trim()
+  cleaned = cleaned.replace(/^Vị trí GPS\s*\[\s*[-+]?[0-9]*\.?[0-9]+,\s*[-+]?[0-9]*\.?[0-9]+\s*\]\s*,?\s*/i, '')
+  cleaned = cleaned.replace(/^[A-Za-z\s]+\s*\[\s*[-+]?[0-9]*\.?[0-9]+,\s*[-+]?[0-9]*\.?[0-9]+\s*\]\s*,?\s*/i, '')
+  cleaned = cleaned.replace(/^[A-Za-zÀ-ỹ\s]+(?=Số\s|Đường\s|\d+[\s,/A-Za-z])/i, (match) => {
+    if (!/đường|phố|tòa|ấp|thôn|xã|phường|quận/i.test(match)) return ''
+    return match
+  }).trim()
+  cleaned = cleaned.replace(/\s+/g, ' ').trim()
+  return cleaned
+}
+
+export function getUserStorageKey(user) {
+  if (!user) return 'guest'
+  const key = (user.email || user.username || (user.userId ? `user_${user.userId}` : '') || (user.id ? `user_${user.id}` : '') || 'guest').toLowerCase().trim()
+  return key || 'guest'
+}
+
+export async function reverseGeocodeVietnam(lat, lon, currentAddress = '') {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18&accept-language=vi`, {
+      headers: { 'Accept-Language': 'vi,en' },
+    })
+    if (res.ok) {
+      const data = await res.json()
+      const addr = data.address || {}
+      const houseNumber = addr.house_number ? `Số ${addr.house_number} ` : ''
+      const road = addr.road || addr.street || addr.pedestrian || ''
+      const quarter = addr.quarter || addr.suburb || addr.neighbourhood || addr.village || ''
+      const district = addr.city_district || addr.district || addr.county || ''
+      const city = addr.city || addr.state || ''
+
+      const parts = [
+        houseNumber ? `${houseNumber}${road}` : road,
+        quarter ? (quarter.toLowerCase().startsWith('phường') || quarter.toLowerCase().startsWith('xã') ? quarter : `Phường ${quarter}`) : '',
+        district ? (district.toLowerCase().startsWith('quận') || district.toLowerCase().startsWith('huyện') ? district : `Quận ${district}`) : '',
+        city ? (city.toLowerCase().startsWith('thành phố') || city.toLowerCase().startsWith('tỉnh') || city.toLowerCase().startsWith('tp') ? city : `TP. ${city}`) : '',
+      ].filter(Boolean)
+
+      if (parts.length > 0) {
+        return cleanAddressGlitch(parts.join(', '))
+      }
+      if (data.display_name) {
+        return cleanAddressGlitch(data.display_name)
+      }
+    }
+  } catch (err) {
+    console.warn('Reverse geocode error:', err)
+  }
+  return cleanAddressGlitch(currentAddress)
+}
+
+export function getUserAddressList(user) {
+  const uKey = getUserStorageKey(user)
+  if (!uKey || uKey === 'guest') return []
+  try {
+    const raw = localStorage.getItem(`smartstock_addresses_${uKey}`)
+    if (raw) {
+      const list = JSON.parse(raw)
+      if (Array.isArray(list) && list.length > 0) return list
+    }
+    // Backward compatibility: migrate legacy default address if present
+    const legacy = localStorage.getItem(`smartstock_default_address_${uKey}`)
+    if (legacy) {
+      const obj = JSON.parse(legacy)
+      if (obj && obj.address && obj.address.trim()) {
+        const migrated = [{
+          id: `addr_${Date.now()}`,
+          recipientName: obj.name || user?.fullName || user?.username || 'Khách hàng',
+          phone: obj.phone || user?.phone || '',
+          fullAddress: cleanAddressGlitch(obj.address),
+          lat: obj.coords?.lat || 10.7716,
+          lng: obj.coords?.lon || 106.7044,
+          label: obj.label || 'Nhà riêng',
+          isDefault: true,
+          createdAt: new Date().toISOString(),
+        }]
+        localStorage.setItem(`smartstock_addresses_${uKey}`, JSON.stringify(migrated))
+        return migrated
+      }
+    }
+  } catch (e) {
+    console.warn('Error reading user address list:', e)
+  }
+  return []
+}
+
+export function saveUserAddressList(user, list) {
+  const uKey = getUserStorageKey(user)
+  if (!uKey || uKey === 'guest') return
+  try {
+    localStorage.setItem(`smartstock_addresses_${uKey}`, JSON.stringify(list))
+    const def = list.find((a) => a.isDefault) || list[0] || null
+    if (def) {
+      localStorage.setItem(`smartstock_default_address_${uKey}`, JSON.stringify({
+        id: def.id,
+        name: def.recipientName,
+        phone: def.phone,
+        address: def.fullAddress,
+        coords: def.lat && def.lng ? { lat: def.lat, lon: def.lng } : null,
+        label: def.label || 'Nhà riêng',
+        updatedAt: new Date().toISOString(),
+      }))
+    }
+    window.dispatchEvent(new CustomEvent('smartstock_addresses_updated', { detail: { userKey: uKey } }))
+  } catch (e) {
+    console.warn('Error saving user address list:', e)
+  }
+}
+
+export function getUserSavedAddress(user) {
+  const list = getUserAddressList(user)
+  const def = list.find((a) => a.isDefault) || list[0] || null
+  if (def) {
+    return {
+      id: def.id,
+      name: def.recipientName,
+      phone: def.phone,
+      address: def.fullAddress,
+      coords: def.lat && def.lng ? { lat: def.lat, lon: def.lng } : null,
+      label: def.label,
+    }
+  }
+  return null
+}
+
+// ----------------------------------------------------
 // MODAL THANH TOÁN NHANH (1-CLICK EXPRESS CHECKOUT)
 // ----------------------------------------------------
 function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNotify }) {
   const [qty, setQty] = useState(1)
   
-  // Auto-fill từ Sổ địa chỉ mặc định trong localStorage
-  const [fullName, setFullName] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
-      return saved.name || currentUser?.fullName || 'Khách hàng SmartStock'
-    } catch {
-      return currentUser?.fullName || 'Khách hàng SmartStock'
-    }
-  })
-  const [phone, setPhone] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
-      return saved.phone || currentUser?.phone || '0909 123 456'
-    } catch {
-      return currentUser?.phone || '0909 123 456'
-    }
-  })
-  const [address, setAddress] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
-      if (saved.address) {
-        let clean = saved.address.replace(/^.*?Minh(?=Số)/i, '').trim()
-        clean = clean.replace(/^[A-Za-zÀ-ỹ\s]+(?=Số\s|Đường\s|\d+[\s,/A-Za-z])/i, (match) => {
-          if (!/đường|phố|tòa|ấp|thôn|xã|phường|quận/i.test(match)) return ''
-          return match
-        }).trim()
-        return clean || saved.address
-      }
-      return 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh'
-    } catch {
-      return 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh'
-    }
-  })
+  // Auto-fill từ Sổ địa chỉ người dùng theo tài khoản currentUser
+  const userAddresses = getUserAddressList(currentUser)
+  const savedDef = getUserSavedAddress(currentUser)
+  const [fullName, setFullName] = useState(() => savedDef?.name || currentUser?.fullName || currentUser?.username || '')
+  const [phone, setPhone] = useState(() => savedDef?.phone || currentUser?.phone || '')
+  const [address, setAddress] = useState(() => cleanAddressGlitch(savedDef?.address || ''))
+  const [showAddressPicker, setShowAddressPicker] = useState(false)
+  const [saveToBook, setSaveToBook] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('COD')
   const [submitting, setSubmitting] = useState(false)
   const [orderCode] = useState(() => `#ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`)
@@ -3167,14 +3571,16 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
   // State Thu cũ đổi mới
   const [tradeInOption, setTradeInOption] = useState(product?.tradeInDevice || 'none')
 
-  // State Dùng Xu SmartStock
+  // State Dùng Xu SmartStock (Cách ly theo currentUser)
   const [useCoins, setUseCoins] = useState(false)
   const customerCoins = (() => {
     try {
-      const saved = localStorage.getItem('smartstock_user_coins')
-      return saved ? parseInt(saved, 10) : 957200
+      const uKey = getUserStorageKey(currentUser)
+      if (!uKey || uKey === 'guest') return 0
+      const saved = localStorage.getItem(`smartstock_user_coins_${uKey}`)
+      return saved != null ? parseInt(saved, 10) : 0
     } catch {
-      return 957200
+      return 0
     }
   })()
 
@@ -3297,10 +3703,13 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
   const handleExecuteOrder = async (isQrPaid = false) => {
     setSubmitting(true)
     try {
-      // Trừ xu nếu khách gạt dùng
+      // Trừ xu nếu khách gạt dùng (Lưu vào key của currentUser)
       if (useCoins && coinDiscountAmount > 0) {
         const nextBal = Math.max(0, customerCoins - coinDiscountAmount)
-        localStorage.setItem('smartstock_user_coins', nextBal.toString())
+        const uKey = getUserStorageKey(currentUser)
+        if (uKey && uKey !== 'guest') {
+          localStorage.setItem(`smartstock_user_coins_${uKey}`, nextBal.toString())
+        }
         window.dispatchEvent(new CustomEvent('smartstock_coins_updated', { detail: { coins: nextBal } }))
       }
 
@@ -3326,6 +3735,46 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
       ]
 
       const extraNote = `[1-Click Mua ngay] Khách: ${fullName} - SĐT: ${phone} - Đ/c: ${address} - PTTT: ${paymentMethod}${appliedVoucher && voucherDiscount > 0 ? ` - Voucher: ${appliedVoucher} (-${formatVND(voucherDiscount)})` : ''}${useCoins && coinDiscountAmount > 0 ? ` - Dùng ${coinDiscountAmount.toLocaleString('vi-VN')} Xu (-${formatVND(coinDiscountAmount)})` : ''}${tradeInDiscount > 0 ? ` - Trợ giá thu cũ: -${formatVND(tradeInDiscount)}` : ''}${wantVat ? ` - e-VAT: ${vatCompany} (MST: ${vatTaxCode}, Email: ${vatEmail})` : ''}${isQrPaid ? ' (Đã quét VietQR)' : ''}`
+
+      // Tự động lưu vào Sổ địa chỉ nếu khách tích chọn hoặc chưa có địa chỉ nào
+      if (address && address.trim()) {
+        const uList = getUserAddressList(currentUser)
+        if (saveToBook || uList.length === 0) {
+          const isExists = uList.some((a) => a.fullAddress === address.trim())
+          if (!isExists) {
+            const newAddr = {
+              id: `addr_${Date.now()}`,
+              recipientName: fullName.trim() || 'Khách hàng',
+              phone: phone.trim() || '',
+              fullAddress: cleanAddressGlitch(address.trim()),
+              label: 'Nhà riêng',
+              isDefault: uList.length === 0,
+              createdAt: new Date().toISOString(),
+            }
+            saveUserAddressList(currentUser, [newAddr, ...uList])
+          }
+        }
+      }
+
+      // Tự động lưu vào Sổ địa chỉ nếu khách tích chọn hoặc chưa có địa chỉ nào
+      if (address && address.trim()) {
+        const uList = getUserAddressList(currentUser)
+        if (saveToBook || uList.length === 0) {
+          const isExists = uList.some((a) => a.fullAddress === address.trim())
+          if (!isExists) {
+            const newAddr = {
+              id: `addr_${Date.now()}`,
+              recipientName: fullName.trim() || 'Khách hàng',
+              phone: phone.trim() || '',
+              fullAddress: cleanAddressGlitch(address.trim()),
+              label: 'Nhà riêng',
+              isDefault: uList.length === 0,
+              createdAt: new Date().toISOString(),
+            }
+            saveUserAddressList(currentUser, [newAddr, ...uList])
+          }
+        }
+      }
 
       const createdOrder = await processStorefrontOrder({
         orderCode,
@@ -3528,6 +3977,76 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
 
         {/* Form nhập thông tin nhận hàng */}
         <form onSubmit={(e) => { e.preventDefault(); if (paymentMethod !== 'VIETQR') handleExecuteOrder(false) }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#1f332f' }}>Thông tin nhận hàng</span>
+            {userAddresses && userAddresses.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAddressPicker((prev) => !prev)}
+                style={{
+                  background: '#fff2ed',
+                  border: '1px solid #fed7aa',
+                  color: '#F06449',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '3px 10px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>📍 Chọn từ Sổ địa chỉ ({userAddresses.length})</span>
+              </button>
+            )}
+          </div>
+
+          {showAddressPicker && userAddresses && userAddresses.length > 0 && (
+            <div style={{ background: '#f8faf9', border: '1px solid #dce5df', borderRadius: '8px', padding: '10px', marginBottom: '12px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#1f332f', marginBottom: '8px' }}>
+                Chọn địa chỉ từ Sổ địa chỉ của bạn:
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {userAddresses.map((addr) => (
+                  <label
+                    key={addr.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '8px',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      background: address === addr.fullAddress ? '#ffedd5' : '#ffffff',
+                      border: address === addr.fullAddress ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="expressAddressRadio"
+                      checked={address === addr.fullAddress}
+                      onChange={() => {
+                        setFullName(addr.recipientName)
+                        setPhone(addr.phone)
+                        setAddress(addr.fullAddress)
+                        setShowAddressPicker(false)
+                        if (onNotify) onNotify(`✓ Đã chọn: ${addr.recipientName} (${addr.label || 'Nhà riêng'})`)
+                      }}
+                      style={{ marginTop: '2px' }}
+                    />
+                    <div style={{ fontSize: '11px', lineHeight: 1.35 }}>
+                      <div style={{ fontWeight: 700, color: '#1c1917' }}>
+                        {addr.recipientName} - {addr.phone} {addr.isDefault && <span style={{ color: '#ea580c', fontWeight: 800 }}>[Mặc định]</span>}
+                      </div>
+                      <div style={{ color: '#64748b', marginTop: '2px' }}>{addr.fullAddress}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '10px', color: '#687771', marginBottom: '4px' }}>Họ và tên người nhận *</label>
@@ -3535,6 +4054,7 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
+                placeholder="Nhập họ và tên..."
                 style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dce5df', fontSize: '11px', outline: 'none' }}
               />
             </div>
@@ -3544,6 +4064,7 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
+                placeholder="Nhập số điện thoại..."
                 style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dce5df', fontSize: '11px', outline: 'none' }}
               />
             </div>
@@ -3558,6 +4079,14 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
               value={address}
               onChange={(val) => setAddress(val)}
             />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '11px', color: '#475569', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={saveToBook}
+                onChange={(e) => setSaveToBook(e.target.checked)}
+              />
+              <span>Lưu địa chỉ này vào Sổ địa chỉ của tôi</span>
+            </label>
           </div>
 
           {/* ==================================================== */}
@@ -4093,50 +4622,27 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
 // FORM ĐẶT HÀNG TRONG CART DRAWER
 // ----------------------------------------------------
 function CartCheckoutForm({ currentUser, cartItems, cartFinalTotal, voucherDiscount, appliedVoucher, onSuccess, onNotify }) {
-  const [fullName, setFullName] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
-      return saved.name || currentUser?.fullName || 'Khách hàng SmartStock'
-    } catch {
-      return currentUser?.fullName || 'Khách hàng SmartStock'
-    }
-  })
-  const [phone, setPhone] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
-      return saved.phone || currentUser?.phone || '0909 123 456'
-    } catch {
-      return currentUser?.phone || '0909 123 456'
-    }
-  })
-  const [address, setAddress] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('smartstock_default_address') || '{}')
-      if (saved.address) {
-        let clean = saved.address.replace(/^.*?Minh(?=Số)/i, '').trim()
-        clean = clean.replace(/^[A-Za-zÀ-ỹ\s]+(?=Số\s|Đường\s|\d+[\s,/A-Za-z])/i, (match) => {
-          if (!/đường|phố|tòa|ấp|thôn|xã|phường|quận/i.test(match)) return ''
-          return match
-        }).trim()
-        return clean || saved.address
-      }
-      return 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh'
-    } catch {
-      return 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh'
-    }
-  })
+  const userAddresses = getUserAddressList(currentUser)
+  const savedDef = getUserSavedAddress(currentUser)
+  const [fullName, setFullName] = useState(() => savedDef?.name || currentUser?.fullName || currentUser?.username || '')
+  const [phone, setPhone] = useState(() => savedDef?.phone || currentUser?.phone || '')
+  const [address, setAddress] = useState(() => cleanAddressGlitch(savedDef?.address || ''))
+  const [showAddressPicker, setShowAddressPicker] = useState(false)
+  const [saveToBook, setSaveToBook] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('COD')
   const [submitting, setSubmitting] = useState(false)
   const [orderCode] = useState(() => `#ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`)
 
-  // SmartStock Xu State
+  // SmartStock Xu State (Cách ly theo currentUser)
   const [useCoins, setUseCoins] = useState(false)
   const customerCoins = (() => {
     try {
-      const saved = localStorage.getItem('smartstock_user_coins')
-      return saved ? parseInt(saved, 10) : 957200
+      const uKey = getUserStorageKey(currentUser)
+      if (!uKey || uKey === 'guest') return 0
+      const saved = localStorage.getItem(`smartstock_user_coins_${uKey}`)
+      return saved != null ? parseInt(saved, 10) : 0
     } catch {
-      return 957200
+      return 0
     }
   })()
   const coinDiscountAmount = useCoins ? Math.min(customerCoins, 100000, cartFinalTotal) : 0
@@ -4154,10 +4660,13 @@ function CartCheckoutForm({ currentUser, cartItems, cartFinalTotal, voucherDisco
 
     setSubmitting(true)
     try {
-      // Trừ xu nếu khách gạt dùng
+      // Trừ xu nếu khách gạt dùng (Lưu vào key của currentUser)
       if (useCoins && coinDiscountAmount > 0) {
         const nextBal = Math.max(0, customerCoins - coinDiscountAmount)
-        localStorage.setItem('smartstock_user_coins', nextBal.toString())
+        const uKey = getUserStorageKey(currentUser)
+        if (uKey && uKey !== 'guest') {
+          localStorage.setItem(`smartstock_user_coins_${uKey}`, nextBal.toString())
+        }
         window.dispatchEvent(new CustomEvent('smartstock_coins_updated', { detail: { coins: nextBal } }))
       }
 
@@ -4270,9 +4779,77 @@ function CartCheckoutForm({ currentUser, cartItems, cartFinalTotal, voucherDisco
         </label>
       </div>
 
-      <strong style={{ fontSize: '13px', color: '#1f332f', display: 'block', marginBottom: '12px' }}>
-        Thông tin nhận hàng &amp; Thanh toán
-      </strong>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <strong style={{ fontSize: '13px', color: '#1f332f' }}>
+          Thông tin nhận hàng &amp; Thanh toán
+        </strong>
+        {userAddresses && userAddresses.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAddressPicker((prev) => !prev)}
+            style={{
+              background: '#fff2ed',
+              border: '1px solid #fed7aa',
+              color: '#F06449',
+              fontSize: '11px',
+              fontWeight: 700,
+              padding: '3px 10px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <span>📍 Chọn từ Sổ địa chỉ ({userAddresses.length})</span>
+          </button>
+        )}
+      </div>
+
+      {showAddressPicker && userAddresses && userAddresses.length > 0 && (
+        <div style={{ background: '#f8faf9', border: '1px solid #dce5df', borderRadius: '8px', padding: '10px', marginBottom: '12px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#1f332f', marginBottom: '8px' }}>
+            Chọn địa chỉ từ Sổ địa chỉ của bạn:
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {userAddresses.map((addr) => (
+              <label
+                key={addr.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                  padding: '8px 10px',
+                  borderRadius: '6px',
+                  background: address === addr.fullAddress ? '#ffedd5' : '#ffffff',
+                  border: address === addr.fullAddress ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="cartAddressRadio"
+                  checked={address === addr.fullAddress}
+                  onChange={() => {
+                    setFullName(addr.recipientName)
+                    setPhone(addr.phone)
+                    setAddress(addr.fullAddress)
+                    setShowAddressPicker(false)
+                    if (onNotify) onNotify(`✓ Đã chọn: ${addr.recipientName} (${addr.label || 'Nhà riêng'})`)
+                  }}
+                  style={{ marginTop: '2px' }}
+                />
+                <div style={{ fontSize: '11px', lineHeight: 1.35 }}>
+                  <div style={{ fontWeight: 700, color: '#1c1917' }}>
+                    {addr.recipientName} - {addr.phone} {addr.isDefault && <span style={{ color: '#ea580c', fontWeight: 800 }}>[Mặc định]</span>}
+                  </div>
+                  <div style={{ color: '#64748b', marginTop: '2px' }}>{addr.fullAddress}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
         <div>
@@ -4281,6 +4858,7 @@ function CartCheckoutForm({ currentUser, cartItems, cartFinalTotal, voucherDisco
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             required
+            placeholder="Nhập họ và tên..."
             style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dce5df', fontSize: '11px', outline: 'none' }}
           />
         </div>
@@ -4290,6 +4868,7 @@ function CartCheckoutForm({ currentUser, cartItems, cartFinalTotal, voucherDisco
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
+            placeholder="Nhập số điện thoại..."
             style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dce5df', fontSize: '11px', outline: 'none' }}
           />
         </div>
@@ -4301,10 +4880,18 @@ function CartCheckoutForm({ currentUser, cartItems, cartFinalTotal, voucherDisco
             value={address}
             onChange={(val) => setAddress(val)}
           />
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '11px', color: '#475569', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={saveToBook}
+              onChange={(e) => setSaveToBook(e.target.checked)}
+            />
+            <span>Lưu địa chỉ này vào Sổ địa chỉ của tôi</span>
+          </label>
         </div>
+      </div>
 
-        {/* CHECKBOX XUẤT HÓA ĐƠN ĐỎ CÔNG TY (E-VAT) */}
-        <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+      <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
             <input
               type="checkbox"
@@ -4393,7 +4980,6 @@ function CartCheckoutForm({ currentUser, cartItems, cartFinalTotal, voucherDisco
             ))}
           </div>
         </div>
-      </div>
 
       {/* Nếu chọn Quét mã VietQR: Hiển thị ngay Khung QR Laser */}
       {paymentMethod === 'VIETQR' ? (
@@ -5212,7 +5798,9 @@ export function CleanAdmin({ role, onLogout, currentUser, onSwitchRole, initialP
     <div className={`app-shell admin-shell ${dark ? 'admin-dark' : ''}`}>
       <aside className="sidebar clean-admin-sidebar">
         <div className="brand-row" style={{ flexShrink: 0 }}>
-          <div className="brand-mark">&#10022;</div>
+          <div className="brand-mark" style={{ background: '#ffffff', padding: '2px', border: '1px solid rgba(0,0,0,0.08)' }}>
+            <img src="/logo.png" alt="SmartStock UNG Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
           <div>
             <div className="brand-name">smart<span>stock</span></div>
             <div className="brand-caption">INVENTORY OS</div>

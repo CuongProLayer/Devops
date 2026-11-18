@@ -28,7 +28,7 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return null;
 
-        return new AuthResponse(GenerateToken(user), user.Role, user.FullName, user.Email, user.Id);
+        return new AuthResponse(GenerateToken(user), user.Role, user.FullName, user.Email, user.Id, user.Username, user.Phone);
     }
 
     public async Task<AuthResponse?> RegisterAsync(RegisterRequest request)
@@ -49,11 +49,38 @@ public class AuthService(AppDbContext db, IConfiguration config) : IAuthService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             FullName = request.FullName.Trim(),
             Phone = request.Phone?.Trim() ?? "",
-            Role = role
+            Role = role,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        return new AuthResponse(GenerateToken(user), user.Role, user.FullName, user.Email, user.Id);
+
+        // ĐỒNG BỘ KIẾN TRÚC: Lưu đồng thời vào bảng Customers để hiển thị ngay lập tức ở tab Khách hàng
+        var existingCust = await db.Customers.FirstOrDefaultAsync(c =>
+            (!string.IsNullOrWhiteSpace(email) && c.Email != null && c.Email.ToLower() == email) ||
+            (!string.IsNullOrWhiteSpace(user.Phone) && c.Phone != null && c.Phone == user.Phone));
+
+        if (existingCust == null)
+        {
+            var customer = new Customer
+            {
+                CustomerCode = $"KH{user.Id:D4}",
+                Name = user.FullName,
+                Phone = string.IsNullOrWhiteSpace(user.Phone) ? null : user.Phone,
+                Email = string.IsNullOrWhiteSpace(user.Email) ? null : user.Email,
+                Address = "",
+                TotalPurchase = 0,
+                Status = "active",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            db.Customers.Add(customer);
+            await db.SaveChangesAsync();
+        }
+
+        return new AuthResponse(GenerateToken(user), user.Role, user.FullName, user.Email, user.Id, user.Username, user.Phone);
     }
 
     public async Task<bool> ChangePasswordAsync(int userId, ChangePasswordRequest request)

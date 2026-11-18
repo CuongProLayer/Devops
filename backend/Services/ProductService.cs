@@ -22,7 +22,7 @@ public class ProductService(AppDbContext db) : IProductService
     {
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 10;
-        if (pageSize > 100) pageSize = 100;
+        if (pageSize > 500) pageSize = 500;
 
         var query = db.Products.AsNoTracking()
             .Include(p => p.Category)
@@ -62,17 +62,20 @@ public class ProductService(AppDbContext db) : IProductService
     public async Task<ProductDto> CreateAsync(int employeeId, CreateProductRequest request)
     {
         await using var tx = await db.Database.BeginTransactionAsync();
-        var code = $"PRD{Guid.NewGuid():N}";
+        var code = !string.IsNullOrWhiteSpace(request.ProductCode)
+            ? request.ProductCode.Trim()
+            : $"PRD{Guid.NewGuid():N}";
         var product = new Product
         {
             ProductCode = code,
             Name = request.Name,
             Description = request.Description,
+            Image = request.EffectiveImage,
             Price = request.Price,
             CostPrice = request.CostPrice,
             Quantity = request.Quantity,
             MinStock = request.MinStock,
-            Unit = request.Unit,
+            Unit = request.Unit ?? "cái",
             CategoryId = request.CategoryId,
             SupplierId = request.SupplierId
         };
@@ -104,6 +107,10 @@ public class ProductService(AppDbContext db) : IProductService
         if (product == null) return null;
 
         var previousQuantity = product.Quantity;
+        if (!string.IsNullOrWhiteSpace(request.ProductCode))
+            product.ProductCode = request.ProductCode.Trim();
+        if (request.EffectiveImage != null)
+            product.Image = request.EffectiveImage;
         product.Name = request.Name;
         product.Description = request.Description;
         product.Price = request.Price;

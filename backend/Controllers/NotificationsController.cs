@@ -109,9 +109,22 @@ public class NotificationsController(AppDbContext db) : ControllerBase
 public class UsersController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] string? role)
     {
-        return Ok(await db.Users
+        var query = db.Users.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(role) && role.Trim().ToLower() != "all")
+        {
+            query = query.Where(u => u.Role == role.Trim().ToLower());
+        }
+        else if (string.IsNullOrWhiteSpace(role))
+        {
+            // Mặc định tab "Người dùng" (Tài khoản hệ thống) chỉ hiển thị nhân sự nội bộ (admin, warehouse, staff)
+            // Toàn bộ tài khoản khách hàng (customer) được hiển thị bên tab "Khách hàng"
+            query = query.Where(u => u.Role != "customer");
+        }
+
+        return Ok(await query
+            .OrderBy(u => u.Id)
             .Select(u => new UserDto(u.Id, u.Username, u.Email, u.FullName, u.Phone, u.Role, u.IsActive, u.CreatedAt))
             .ToListAsync());
     }
@@ -149,10 +162,31 @@ public class UsersController(AppDbContext db) : ControllerBase
             FullName = request.FullName.Trim(),
             Phone = request.Phone?.Trim() ?? "",
             Role = role,
-            IsActive = true
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
         db.Users.Add(user);
         await db.SaveChangesAsync();
+
+        if (role == "customer")
+        {
+            var customer = new Customer
+            {
+                CustomerCode = $"KH{user.Id:D4}",
+                Name = user.FullName,
+                Phone = string.IsNullOrWhiteSpace(user.Phone) ? null : user.Phone,
+                Email = string.IsNullOrWhiteSpace(user.Email) ? null : user.Email,
+                Address = "",
+                TotalPurchase = 0,
+                Status = "active",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            db.Customers.Add(customer);
+            await db.SaveChangesAsync();
+        }
+
         return Created($"/api/users/{user.Id}", new UserDto(user.Id, user.Username, user.Email, user.FullName, user.Phone, user.Role, user.IsActive, user.CreatedAt));
     }
 

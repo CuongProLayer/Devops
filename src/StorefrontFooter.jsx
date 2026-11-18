@@ -39,18 +39,18 @@ export function StorefrontFooter({ onOpenWarranty }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
             <span
               style={{
-                width: '32px',
-                height: '32px',
+                width: '34px',
+                height: '34px',
                 borderRadius: '8px',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: '#fff',
-                display: 'grid',
-                placeItems: 'center',
-                fontWeight: 900,
-                fontSize: '16px',
+                background: '#ffffff',
+                padding: '2px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
               }}
             >
-              ✦
+              <img src="/logo.png" alt="SmartStock UNG Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </span>
             <span style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', letterSpacing: '0.5px' }}>
               SmartStock Storefront

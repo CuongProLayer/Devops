@@ -125,9 +125,20 @@ export default function App() {
     }
   }
 
-  // Xử lý khi đăng xuất
+  // Xử lý khi đăng xuất (Xóa sạch session, không tự động đăng nhập lại)
   const handleLogout = () => {
     clearAuth()
+    try {
+      localStorage.removeItem('smartstock_default_address')
+      localStorage.removeItem('smartstock_guest_address')
+      localStorage.removeItem('smartstock_cart')
+      localStorage.removeItem('smartstock_wishlist')
+      localStorage.removeItem('smartstock_user_coins')
+      localStorage.removeItem('savedAddress')
+      localStorage.removeItem('checkoutInfo')
+      localStorage.removeItem('shippingAddress')
+      localStorage.removeItem('shipping_info')
+    } catch {}
     setIsAuthenticated(false)
     setCurrentUser(null)
     setRole('customer')
