@@ -45,7 +45,17 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import { api, formatVND, formatDate } from './api'
-import { getProductImage, getProductImages, getCategoryFallbackImage, getProductSpecs, reverseGeocodeVietnam, getUserStorageKey, getUserAddressList, saveUserAddressList, getUserSavedAddress } from './CleanScreens'
+import {
+  getProductImage,
+  getProductImages,
+  getCategoryFallbackImage,
+  getProductSpecs,
+  reverseGeocodeVietnam,
+  getUserStorageKey,
+  getUserAddressList,
+  saveUserAddressList,
+  getUserSavedAddress,
+} from './storefrontUtils'
 
 export const POPULAR_VN_ADDRESSES = [
   { name: 'Tòa nhà Bitexco Financial Tower', detail: 'Số 2 Hải Triều, Bến Nghé, Quận 1, TP. Hồ Chí Minh' },

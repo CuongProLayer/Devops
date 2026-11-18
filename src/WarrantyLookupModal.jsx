@@ -13,7 +13,7 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import { formatVND, formatDate } from './api'
-import { getProductImage } from './CleanScreens'
+import { getProductImage } from './storefrontUtils'
 
 export function WarrantyLookupModal({ orders = [], currentUser, onClose }) {
   const [searchTerm, setSearchTerm] = useState(currentUser?.phone || '')

@@ -88,6 +88,32 @@ import {
 import { SellerChatAdminModal } from './SellerChatAdminModal'
 import { StorefrontFooter } from './StorefrontFooter'
 import { WarrantyLookupModal } from './WarrantyLookupModal'
+export {
+  DEAD_UNSPLASH_IDS,
+  getCategoryFallbackImage,
+  getProductImage,
+  getProductImages,
+  getProductSpecs,
+  cleanAddressGlitch,
+  getUserStorageKey,
+  reverseGeocodeVietnam,
+  getUserAddressList,
+  saveUserAddressList,
+  getUserSavedAddress,
+} from './storefrontUtils'
+import {
+  DEAD_UNSPLASH_IDS,
+  getCategoryFallbackImage,
+  getProductImage,
+  getProductImages,
+  getProductSpecs,
+  cleanAddressGlitch,
+  getUserStorageKey,
+  reverseGeocodeVietnam,
+  getUserAddressList,
+  saveUserAddressList,
+  getUserSavedAddress,
+} from './storefrontUtils'
 
 const text = {
   welcome: 'Đăng nhập vào tài khoản',
@@ -478,246 +504,6 @@ function CleanRecovery({ screen, onBack }) {
 // ----------------------------------------------------
 // STOREFRONT: REAL BACKEND CATALOG & ORDERS
 // ----------------------------------------------------
-// PRODUCT IMAGE RESOLVER & FALLBACK (100% VERIFIED WORKING HTTPS URLS)
-// ----------------------------------------------------
-const DEAD_UNSPLASH_IDS = [
-  'photo-1625948515291-696130d44b54',
-  'photo-1496181133206-80ce9b88a854',
-  'photo-1593642702821-c8da6771f0c7',
-  'photo-1580910051074-3eb694886506',
-  'photo-1531297484001-80022131f5a3',
-]
-
-export function getCategoryFallbackImage(product) {
-  const name = (product?.name || '').toLowerCase()
-  const code = (product?.productCode || '').toLowerCase()
-  const cat = (product?.categoryName || '').toLowerCase()
-
-  // 1. Màn hình máy tính / Monitor (phải ưu tiên kiểm tra trước laptop/phone)
-  if (name.includes('màn hình') || name.includes('monitor') || cat.includes('màn hình')) {
-    if (name.includes('curved') || name.includes('gaming') || name.includes('odyssey')) {
-      return 'https://images.unsplash.com/photo-1547082299-de196ea013d6?auto=format&fit=crop&w=800&q=80'
-    }
-    return 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=800&q=80'
-  }
-
-  // 2. Bàn phím cơ & Chuột
-  if (name.includes('bàn phím') || name.includes('keyboard') || name.includes('keychron') || code.includes('keychron') || code.includes('k2')) {
-    return 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80'
-  }
-  if (name.includes('chuột') || name.includes('mouse') || name.includes('logitech mx') || name.includes('lift') || code.includes('logi') || code.includes('mx')) {
-    return 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=800&q=80'
-  }
-
-  // 3. Phụ kiện sạc, cáp, pin, hub, SSD (ưu tiên trước tên hãng như Apple/Samsung)
-  if (name.includes('cáp') || name.includes('cable') || name.includes('dây sạc') || name.includes('woven')) {
-    return 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=800&q=80'
-  }
-  if (name.includes('củ sạc') || name.includes('cốc sạc') || name.includes('charger') || name.includes('ganprime') || name.includes('gan') || code.includes('ank')) {
-    return 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=800&q=80'
-  }
-  if (name.includes('pin dự phòng') || name.includes('sạc dự phòng') || name.includes('power bank') || name.includes('maggo') || name.includes('powerbank')) {
-    return 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?auto=format&fit=crop&w=800&q=80'
-  }
-  if (name.includes('hub') || name.includes('chuyển đổi') || name.includes('adapter')) {
-    return 'https://images.unsplash.com/photo-1588508065123-287b28e013da?auto=format&fit=crop&w=800&q=80'
-  }
-  if (name.includes('ssd') || name.includes('ổ cứng')) {
-    return 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=800&q=80'
-  }
-
-  // 4. Tai nghe / AirPods / Âm thanh / Loa
-  if (name.includes('airpod') || name.includes('tai nghe') || name.includes('headphone') || name.includes('earbuds') || name.includes('loa') || name.includes('speaker') || name.includes('marshall') || cat.includes('tai nghe') || cat.includes('âm thanh')) {
-    if (name.includes('loa') || name.includes('speaker') || name.includes('marshall') || name.includes('emberton')) {
-      return 'https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=800&q=80'
-    }
-    if (name.includes('max')) {
-      return 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=800&q=80'
-    }
-    if (name.includes('airpod') || (name.includes('tai nghe') && name.includes('apple'))) {
-      return 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?auto=format&fit=crop&w=800&q=80'
-    }
-    return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80'
-  }
-
-  // 5. iPad / Máy tính bảng
-  if (name.includes('ipad') || name.includes('tablet') || name.includes('tab') || cat.includes('máy tính bảng') || cat.includes('tablet')) {
-    return 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=800&q=80'
-  }
-
-  // 6. Laptop / MacBook / Gaming
-  if (name.includes('macbook') || name.includes('laptop') || name.includes('thinkpad') || name.includes('legion') || name.includes('rog') || name.includes('zephyrus') || name.includes('xps') || name.includes('spectre') || name.includes('helios') || name.includes('zenbook') || cat.includes('laptop')) {
-    if (name.includes('rog') || name.includes('gaming') || name.includes('legion') || name.includes('predator') || name.includes('helios')) {
-      return 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?auto=format&fit=crop&w=800&q=80'
-    }
-    if (name.includes('thinkpad')) {
-      return 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?auto=format&fit=crop&w=800&q=80'
-    }
-    if (name.includes('dell') || name.includes('xps')) {
-      return 'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?auto=format&fit=crop&w=800&q=80'
-    }
-    return 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80'
-  }
-
-  // 7. Điện thoại thông minh (iPhone, Samsung Galaxy, Xiaomi, Oppo)
-  if (name.includes('iphone') || code.includes('ip1') || code.includes('iphone')) {
-    return 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80'
-  }
-  if (name.includes('samsung') || name.includes('galaxy') || name.includes('s24') || name.includes('z fold') || name.includes('z flip') || code.includes('ss-')) {
-    return 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=800&q=80'
-  }
-  if (name.includes('xiaomi') || name.includes('redmi')) {
-    return 'https://images.unsplash.com/photo-1565849904461-04a58ad377e0?auto=format&fit=crop&w=800&q=80'
-  }
-  if (name.includes('oppo') || name.includes('reno') || name.includes('find')) {
-    return 'https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?auto=format&fit=crop&w=800&q=80'
-  }
-  if (name.includes('điện thoại') || name.includes('phone') || cat.includes('điện thoại')) {
-    return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80'
-  }
-
-  // Mặc định công nghệ chung
-  return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80'
-}
-
-export function getProductImage(product) {
-  const rawUrl = product?.image || product?.imageUrl || ''
-  if (rawUrl && typeof rawUrl === 'string' && rawUrl.startsWith('http')) {
-    const isDead = DEAD_UNSPLASH_IDS.some((deadId) => rawUrl.includes(deadId))
-    if (!isDead) return rawUrl
-  }
-  return getCategoryFallbackImage(product)
-}
-
-export function getProductImages(product) {
-  const main = getProductImage(product)
-  const name = (product?.name || '').toLowerCase()
-  const cat = (product?.categoryName || '').toLowerCase()
-
-  if (name.includes('màn hình') || name.includes('monitor') || cat.includes('màn hình')) {
-    return [
-      main,
-      'https://images.unsplash.com/photo-1547082299-de196ea013d6?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1551645120-d70bfe84c826?auto=format&fit=crop&w=800&q=80',
-    ]
-  }
-
-  if (name.includes('keychron') || name.includes('bàn phím')) {
-    return [
-      main,
-      'https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80',
-    ]
-  }
-
-  if (name.includes('chuột') || name.includes('mouse')) {
-    return [
-      main,
-      'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=800&q=80',
-    ]
-  }
-
-  if (name.includes('cáp') || name.includes('sạc') || name.includes('pin') || name.includes('hub')) {
-    return [
-      main,
-      'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1588508065123-287b28e013da?auto=format&fit=crop&w=800&q=80',
-    ]
-  }
-
-  if (name.includes('airpod') || name.includes('tai nghe') || name.includes('headphone') || name.includes('sony')) {
-    return [
-      main,
-      'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=800&q=80',
-    ]
-  }
-
-  if (name.includes('ipad') || name.includes('tablet')) {
-    return [
-      main,
-      'https://images.unsplash.com/photo-1561154464-82e9adf32764?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1585790050230-5dd28404ccb9?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1589739900243-4b52cd9b104e?auto=format&fit=crop&w=800&q=80',
-    ]
-  }
-
-  if (name.includes('macbook') || name.includes('laptop') || cat.includes('laptop')) {
-    return [
-      main,
-      'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1603302576837-37561b2e2302?auto=format&fit=crop&w=800&q=80',
-    ]
-  }
-
-  return [
-    main,
-    'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=800&q=80',
-  ]
-}
-
-export function getProductSpecs(product) {
-  const name = (product?.name || '').toLowerCase()
-  const cat = (product?.categoryName || '').toLowerCase()
-
-  if (name.includes('iphone') || name.includes('samsung') || cat.includes('thoại') || cat.includes('phone')) {
-    const isApple = name.includes('iphone')
-    return {
-      category: 'Điện thoại thông minh Flagship',
-      display: isApple ? '6.7" Super Retina XDR OLED 120Hz ProMotion (2000 nits)' : '6.8" Dynamic AMOLED 2X 120Hz Vision Booster (2600 nits)',
-      chip: isApple ? 'Apple A17 Pro (3nm, 6 nhân CPU & 6 nhân GPU đồ họa)' : 'Snapdragon 8 Gen 3 for Galaxy (4nm, Ray Tracing thời gian thực)',
-      memory: isApple ? '8GB RAM • 256GB / 512GB NVMe siêu tốc' : '12GB RAM LPDDR5X • 512GB UFS 4.0',
-      camera: isApple ? 'Chính 48MP OIS + 12MP Ultra-wide + 12MP Tele 5x Zoom quang học' : 'Chính 200MP OIS + 50MP Tele 5x + 10MP Tele 3x + 12MP Ultra-wide',
-      battery: isApple ? '4.422 mAh, Sạc nhanh PD 27W, MagSafe không dây 15W' : '5.000 mAh, Sạc nhanh 45W, Sạc ngược không dây PowerShare',
-      origin: 'Chính hãng VN/A (Nguyên seal 100% bảo hành toàn quốc)',
-      warranty: '12 tháng chính hãng ủy quyền tại Việt Nam',
-    }
-  }
-
-  if (name.includes('macbook') || cat.includes('laptop') || cat.includes('máy tính')) {
-    return {
-      category: 'Laptop cao cấp & Máy trạm di động',
-      display: 'Liquid Retina 15.3 inch 2880x1864 True Tone, độ sáng 500 nits',
-      chip: 'Apple M3 Chip thế hệ mới (8-core CPU, 10-core GPU, 16-core Neural Engine)',
-      memory: '16GB Unified Memory • 512GB SSD NVMe tốc độ đọc 3.5GB/s',
-      camera: 'Camera FaceTime HD 1080p, 3 micro chuẩn studio',
-      battery: '66.5Wh Lithium-polymer (Thời lượng xem video 18 giờ liên tục)',
-      origin: 'Chính hãng Apple Vietnam (Phân phối chính ngạch SA/A)',
-      warranty: '12 tháng chính hãng Apple toàn cầu & ủy quyền VN',
-    }
-  }
-
-  if (name.includes('sony') || name.includes('tai nghe') || cat.includes('kiện') || cat.includes('âm thanh')) {
-    return {
-      category: 'Âm thanh không dây cao cấp & Chống ồn',
-      display: 'Thiết kế Over-ear công thái học da Soft Fit siêu êm ái',
-      chip: 'Dual Chip V1 + HD QN1 chuyên biệt cho khử tiếng ồn AI thông minh',
-      memory: 'Hỗ trợ Hi-Res Audio Wireless, LDAC, DSEE Extreme AI Upscaling',
-      camera: 'Hệ thống 8 micro beamforming lọc gió và nhận diện giọng nói Precise Voice Pickup',
-      battery: '30 giờ nghe liên tục (bật ANC), sạc nhanh 3 phút nghe 3 giờ',
-      origin: 'Chính hãng Sony Vietnam (Nguyên hộp phụ kiện cao cấp)',
-      warranty: '12 tháng chính hãng Sony Center toàn quốc',
-    }
-  }
-
-  return {
-    category: 'Phụ kiện công nghệ cao cấp',
-    display: 'Thiết kế nguyên khối hợp kim nhôm Alumium chống trầy xước',
-    chip: 'IC điều phối thông minh Power Delivery 3.0 & Quick Charge 4+',
-    memory: 'Tương thích 100% chuẩn sạc và kết nối USB-C quốc tế',
-    camera: 'Đạt chứng nhận an toàn chống cháy nổ CE, FCC, RoHS',
-    battery: 'Tuổi thọ linh kiện trên 50.000 giờ hoạt động bền bỉ',
-    origin: 'Nhập khẩu chính ngạch chính hãng 100%',
-    warranty: '12 tháng 1-đổi-1 nếu phát sinh lỗi phần cứng',
-  }
-}
 
 
 export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
@@ -3423,135 +3209,7 @@ export async function processStorefrontOrder({
   return standardOrder
 }
 
-// ----------------------------------------------------
-// CÁC HÀM TIỆN ÍCH QUẢN LÝ SỔ ĐỊA CHỈ & ĐỊNH VỊ CHUẨN VIỆT NAM
-// ----------------------------------------------------
-export function cleanAddressGlitch(raw) {
-  if (!raw || typeof raw !== 'string') return ''
-  let cleaned = raw.trim()
-  cleaned = cleaned.replace(/^Vị trí GPS\s*\[\s*[-+]?[0-9]*\.?[0-9]+,\s*[-+]?[0-9]*\.?[0-9]+\s*\]\s*,?\s*/i, '')
-  cleaned = cleaned.replace(/^[A-Za-z\s]+\s*\[\s*[-+]?[0-9]*\.?[0-9]+,\s*[-+]?[0-9]*\.?[0-9]+\s*\]\s*,?\s*/i, '')
-  cleaned = cleaned.replace(/^[A-Za-zÀ-ỹ\s]+(?=Số\s|Đường\s|\d+[\s,/A-Za-z])/i, (match) => {
-    if (!/đường|phố|tòa|ấp|thôn|xã|phường|quận/i.test(match)) return ''
-    return match
-  }).trim()
-  cleaned = cleaned.replace(/\s+/g, ' ').trim()
-  return cleaned
-}
 
-export function getUserStorageKey(user) {
-  if (!user) return 'guest'
-  const key = (user.email || user.username || (user.userId ? `user_${user.userId}` : '') || (user.id ? `user_${user.id}` : '') || 'guest').toLowerCase().trim()
-  return key || 'guest'
-}
-
-export async function reverseGeocodeVietnam(lat, lon, currentAddress = '') {
-  try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18&accept-language=vi`, {
-      headers: { 'Accept-Language': 'vi,en' },
-    })
-    if (res.ok) {
-      const data = await res.json()
-      const addr = data.address || {}
-      const houseNumber = addr.house_number ? `Số ${addr.house_number} ` : ''
-      const road = addr.road || addr.street || addr.pedestrian || ''
-      const quarter = addr.quarter || addr.suburb || addr.neighbourhood || addr.village || ''
-      const district = addr.city_district || addr.district || addr.county || ''
-      const city = addr.city || addr.state || ''
-
-      const parts = [
-        houseNumber ? `${houseNumber}${road}` : road,
-        quarter ? (quarter.toLowerCase().startsWith('phường') || quarter.toLowerCase().startsWith('xã') ? quarter : `Phường ${quarter}`) : '',
-        district ? (district.toLowerCase().startsWith('quận') || district.toLowerCase().startsWith('huyện') ? district : `Quận ${district}`) : '',
-        city ? (city.toLowerCase().startsWith('thành phố') || city.toLowerCase().startsWith('tỉnh') || city.toLowerCase().startsWith('tp') ? city : `TP. ${city}`) : '',
-      ].filter(Boolean)
-
-      if (parts.length > 0) {
-        return cleanAddressGlitch(parts.join(', '))
-      }
-      if (data.display_name) {
-        return cleanAddressGlitch(data.display_name)
-      }
-    }
-  } catch (err) {
-    console.warn('Reverse geocode error:', err)
-  }
-  return cleanAddressGlitch(currentAddress)
-}
-
-export function getUserAddressList(user) {
-  const uKey = getUserStorageKey(user)
-  if (!uKey || uKey === 'guest') return []
-  try {
-    const raw = localStorage.getItem(`smartstock_addresses_${uKey}`)
-    if (raw) {
-      const list = JSON.parse(raw)
-      if (Array.isArray(list) && list.length > 0) return list
-    }
-    // Backward compatibility: migrate legacy default address if present
-    const legacy = localStorage.getItem(`smartstock_default_address_${uKey}`)
-    if (legacy) {
-      const obj = JSON.parse(legacy)
-      if (obj && obj.address && obj.address.trim()) {
-        const migrated = [{
-          id: `addr_${Date.now()}`,
-          recipientName: obj.name || user?.fullName || user?.username || 'Khách hàng',
-          phone: obj.phone || user?.phone || '',
-          fullAddress: cleanAddressGlitch(obj.address),
-          lat: obj.coords?.lat || 10.7716,
-          lng: obj.coords?.lon || 106.7044,
-          label: obj.label || 'Nhà riêng',
-          isDefault: true,
-          createdAt: new Date().toISOString(),
-        }]
-        localStorage.setItem(`smartstock_addresses_${uKey}`, JSON.stringify(migrated))
-        return migrated
-      }
-    }
-  } catch (e) {
-    console.warn('Error reading user address list:', e)
-  }
-  return []
-}
-
-export function saveUserAddressList(user, list) {
-  const uKey = getUserStorageKey(user)
-  if (!uKey || uKey === 'guest') return
-  try {
-    localStorage.setItem(`smartstock_addresses_${uKey}`, JSON.stringify(list))
-    const def = list.find((a) => a.isDefault) || list[0] || null
-    if (def) {
-      localStorage.setItem(`smartstock_default_address_${uKey}`, JSON.stringify({
-        id: def.id,
-        name: def.recipientName,
-        phone: def.phone,
-        address: def.fullAddress,
-        coords: def.lat && def.lng ? { lat: def.lat, lon: def.lng } : null,
-        label: def.label || 'Nhà riêng',
-        updatedAt: new Date().toISOString(),
-      }))
-    }
-    window.dispatchEvent(new CustomEvent('smartstock_addresses_updated', { detail: { userKey: uKey } }))
-  } catch (e) {
-    console.warn('Error saving user address list:', e)
-  }
-}
-
-export function getUserSavedAddress(user) {
-  const list = getUserAddressList(user)
-  const def = list.find((a) => a.isDefault) || list[0] || null
-  if (def) {
-    return {
-      id: def.id,
-      name: def.recipientName,
-      phone: def.phone,
-      address: def.fullAddress,
-      coords: def.lat && def.lng ? { lat: def.lat, lon: def.lng } : null,
-      label: def.label,
-    }
-  }
-  return null
-}
 
 // ----------------------------------------------------
 // MODAL THANH TOÁN NHANH (1-CLICK EXPRESS CHECKOUT)
@@ -6568,6 +6226,7 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
   const [replyingReview, setReplyingReview] = useState(null)
   const [replyText, setReplyText] = useState('')
   const [savingReply, setSavingReply] = useState(false)
+  const [selectedCategoryForProducts, setSelectedCategoryForProducts] = useState(null)
 
   const notify = (msg) => {
     setToast(msg)
@@ -6611,8 +6270,17 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
         setCategories(cRes.status === 'fulfilled' ? (cRes.value || []) : [])
         setSuppliers(sRes.status === 'fulfilled' ? (sRes.value?.items || sRes.value || []) : [])
       } else if (page === 'categories') {
-        const cRes = await api.getCategories()
-        setCategories(cRes || [])
+        const [cRes, pRes] = await Promise.all([
+          api.getCategories(),
+          api.getProducts({ pageSize: 500 }),
+        ])
+        const rawProducts = pRes?.items || pRes || []
+        setProducts(rawProducts)
+        const cats = (cRes || []).map((c) => {
+          const count = rawProducts.filter((p) => p.categoryId === c.id).length
+          return { ...c, productCount: count > 0 ? count : (c.productCount ?? 0) }
+        })
+        setCategories(cats)
       } else if (page === 'inventory') {
         const invRes = await api.getInventory()
         setInventory(invRes || [])
@@ -7363,7 +7031,30 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
               </div>
               <strong>{c.name}</strong>
               <span>{c.description || 'Chưa có mô tả'}</span>
-              <small>{c.productCount ?? 0} sản phẩm liên kết</small>
+              <button
+                type="button"
+                className="category-products-btn"
+                onClick={() => setSelectedCategoryForProducts(c)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 12px',
+                  borderRadius: '8px',
+                  background: '#f0fdf4',
+                  border: '1px solid #86efac',
+                  color: '#166534',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  margin: '6px 0',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Package size={14} color="#15803d" />
+                <span>📦 Quản lý SP ({c.productCount ?? 0} sản phẩm)</span>
+              </button>
               <label className="category-image-action">
                 <Upload size={14} /> {c.imageUrl ? 'Thay ảnh' : 'Tải ảnh sản phẩm'}
                 <input
@@ -7395,6 +7086,16 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
           <AddCategoryModal
             onClose={() => setShowAddCategoryModal(false)}
             onSave={handleCreateCategory}
+          />
+        )}
+        {selectedCategoryForProducts && (
+          <CategoryProductsModal
+            category={selectedCategoryForProducts}
+            allProducts={products}
+            categories={categories}
+            onClose={() => setSelectedCategoryForProducts(null)}
+            onRefresh={loadModuleData}
+            onNotify={notify}
           />
         )}
         {toast && <AdminToast message={toast} />}
@@ -9056,6 +8757,849 @@ function AddProductModal({ categories, suppliers, onClose, onSave }) {
             <button type="submit" className="button primary" disabled={!categories.length}>Tạo sản phẩm</button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// ====================================================
+// MODAL QUẢN LÝ SẢN PHẨM LIÊN KẾT THEO DANH MỤC
+// ====================================================
+function CategoryProductsModal({
+  category,
+  allProducts = [],
+  categories = [],
+  onClose,
+  onRefresh,
+  onNotify,
+}) {
+  const [productsList, setProductsList] = useState(() =>
+    allProducts.filter((p) => p.categoryId === category.id)
+  )
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [showLinkPicker, setShowLinkPicker] = useState(false)
+  const [selectedToLink, setSelectedToLink] = useState('')
+  const [savingId, setSavingId] = useState(null)
+
+  // Form thêm sản phẩm mới trực tiếp vào danh mục này
+  const [newProd, setNewProd] = useState({
+    name: '',
+    productCode: '',
+    price: 0,
+    costPrice: 0,
+    stock: 20,
+    image: '',
+    description: '',
+  })
+  const [creating, setCreating] = useState(false)
+
+  // Danh sách sản phẩm chưa thuộc danh mục này
+  const unlinkedProducts = useMemo(() => {
+    return allProducts.filter((p) => p.categoryId !== category.id)
+  }, [allProducts, category.id])
+
+  // Lọc sản phẩm theo tìm kiếm
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm.trim()) return productsList
+    const q = searchTerm.toLowerCase().trim()
+    return productsList.filter(
+      (p) =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.productCode || '').toLowerCase().includes(q)
+    )
+  }, [productsList, searchTerm])
+
+  // Xử lý upload ảnh sản phẩm từ máy tính (chuyển sang Base64 data URL)
+  const handleProductImageUpload = (product, file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const dataUrl = e.target.result
+      setProductsList((prev) =>
+        prev.map((item) =>
+          item.id === product.id ? { ...item, image: dataUrl, _dirty: true } : item
+        )
+      )
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Cập nhật trường dữ liệu sản phẩm trong state
+  const handleFieldChange = (productId, field, value) => {
+    setProductsList((prev) =>
+      prev.map((item) =>
+        item.id === productId ? { ...item, [field]: value, _dirty: true } : item
+      )
+    )
+  }
+
+  // Lưu thay đổi sản phẩm vào Backend & SQL Server
+  const handleSaveProduct = async (product) => {
+    setSavingId(product.id)
+    try {
+      const payload = {
+        name: product.name,
+        productCode: product.productCode || `SP-${product.id}`,
+        categoryId: category.id,
+        price: Number(product.price) || 0,
+        costPrice: Number(product.costPrice) || 0,
+        stockQuantity: Number(product.stockQuantity ?? product.stock ?? product.quantity) || 0,
+        image: product.image || '',
+        description: product.description || '',
+      }
+      await api.updateProduct(product.id, payload)
+      setProductsList((prev) =>
+        prev.map((item) => (item.id === product.id ? { ...item, _dirty: false } : item))
+      )
+      onNotify?.(`✅ Đã lưu thay đổi cho sản phẩm "${product.name}"!`)
+      window.dispatchEvent(new Event('smartstock-data-sync'))
+      onRefresh?.()
+    } catch (err) {
+      alert(err.message || 'Lỗi khi lưu sản phẩm')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  // Gỡ sản phẩm khỏi danh mục
+  const handleUnlinkProduct = async (product) => {
+    if (!confirm(`Gỡ sản phẩm "${product.name}" khỏi danh mục ${category.name}?`)) return
+    try {
+      await api.updateProduct(product.id, {
+        name: product.name,
+        productCode: product.productCode || `SP-${product.id}`,
+        categoryId: null,
+        price: Number(product.price) || 0,
+        costPrice: Number(product.costPrice) || 0,
+        stockQuantity: Number(product.stockQuantity ?? product.stock ?? product.quantity) || 0,
+        image: product.image || '',
+        description: product.description || '',
+      })
+      setProductsList((prev) => prev.filter((item) => item.id !== product.id))
+      onNotify?.(`Đã gỡ "${product.name}" khỏi danh mục!`)
+      window.dispatchEvent(new Event('smartstock-data-sync'))
+      onRefresh?.()
+    } catch (err) {
+      alert(err.message || 'Không thể gỡ sản phẩm')
+    }
+  }
+
+  // Thêm sản phẩm mới vào danh mục
+  const handleCreateProduct = async (e) => {
+    e.preventDefault()
+    if (!newProd.name.trim()) {
+      alert('Vui lòng nhập tên sản phẩm')
+      return
+    }
+    setCreating(true)
+    try {
+      const code = newProd.productCode.trim() || `SKU-${Date.now().toString().slice(-6)}`
+      const payload = {
+        name: newProd.name.trim(),
+        productCode: code,
+        categoryId: category.id,
+        price: Number(newProd.price) || 0,
+        costPrice: Number(newProd.costPrice) || 0,
+        stockQuantity: Number(newProd.stock) || 0,
+        image: newProd.image || '',
+        description: newProd.description || '',
+      }
+      const created = await api.createProduct(payload)
+      setProductsList((prev) => [created || { ...payload, id: `p_${Date.now()}` }, ...prev])
+      setNewProd({
+        name: '',
+        productCode: '',
+        price: 0,
+        costPrice: 0,
+        stock: 20,
+        image: '',
+        description: '',
+      })
+      setShowAddForm(false)
+      onNotify?.(`🎉 Đã thêm mới sản phẩm "${payload.name}" vào danh mục ${category.name}!`)
+      window.dispatchEvent(new Event('smartstock-data-sync'))
+      onRefresh?.()
+    } catch (err) {
+      alert(err.message || 'Không thể tạo sản phẩm mới')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  // Liên kết sản phẩm có sẵn vào danh mục này
+  const handleLinkExisting = async () => {
+    if (!selectedToLink) return
+    const target = allProducts.find((p) => p.id.toString() === selectedToLink.toString())
+    if (!target) return
+    try {
+      await api.updateProduct(target.id, {
+        name: target.name,
+        productCode: target.productCode || `SP-${target.id}`,
+        categoryId: category.id,
+        price: Number(target.price) || 0,
+        costPrice: Number(target.costPrice) || 0,
+        stockQuantity: Number(target.stockQuantity ?? target.stock ?? target.quantity) || 0,
+        image: target.image || '',
+        description: target.description || '',
+      })
+      const updated = { ...target, categoryId: category.id }
+      setProductsList((prev) => [updated, ...prev])
+      setSelectedToLink('')
+      setShowLinkPicker(false)
+      onNotify?.(`🔗 Đã liên kết sản phẩm "${target.name}" vào danh mục ${category.name}!`)
+      window.dispatchEvent(new Event('smartstock-data-sync'))
+      onRefresh?.()
+    } catch (err) {
+      alert(err.message || 'Lỗi khi liên kết sản phẩm')
+    }
+  }
+
+  return (
+    <div
+      className="modal-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        className="modal-card"
+        style={{
+          width: '100%',
+          maxWidth: '1000px',
+          maxHeight: '90vh',
+          background: '#ffffff',
+          borderRadius: '16px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header Modal */}
+        <div
+          style={{
+            padding: '18px 24px',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#f8fafc',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: '#e0f2fe',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+              }}
+            >
+              {category.icon || '📦'}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  Sản phẩm thuộc: {category.name}
+                </h2>
+                <span
+                  style={{
+                    background: '#dcfce7',
+                    color: '#15803d',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {productsList.length} sản phẩm
+                </span>
+              </div>
+              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                Quản lý hình ảnh, tên gọi, giá bán và liên kết sản phẩm trực tiếp với danh mục này
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: '#f1f5f9',
+              border: 'none',
+              borderRadius: '8px',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#475569',
+              cursor: 'pointer',
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Toolbar Thao tác */}
+        <div
+          style={{
+            padding: '14px 24px',
+            borderBottom: '1px solid #f1f5f9',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            background: '#ffffff',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ position: 'relative', width: '320px' }}>
+            <Search
+              size={15}
+              style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }}
+            />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm nhanh sản phẩm trong danh mục..."
+              style={{
+                width: '100%',
+                padding: '7px 10px 7px 32px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                fontSize: '12px',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddForm(!showAddForm)
+                setShowLinkPicker(false)
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                background: showAddForm ? '#f1f5f9' : '#059669',
+                color: showAddForm ? '#334155' : '#ffffff',
+                border: 'none',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={15} />
+              <span>{showAddForm ? 'Đóng form thêm' : '+ Thêm sản phẩm mới'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowLinkPicker(!showLinkPicker)
+                setShowAddForm(false)
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                background: showLinkPicker ? '#f1f5f9' : '#0284c7',
+                color: showLinkPicker ? '#334155' : '#ffffff',
+                border: 'none',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <ExternalLink size={15} />
+              <span>{showLinkPicker ? 'Đóng chọn' : '🔗 Liên kết SP có sẵn'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Khung Thêm Sản phẩm mới */}
+        {showAddForm && (
+          <form
+            onSubmit={handleCreateProduct}
+            style={{
+              padding: '16px 24px',
+              background: '#f0fdf4',
+              borderBottom: '1px solid #bbf7d0',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '12px',
+              alignItems: 'end',
+            }}
+          >
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#166534', marginBottom: '4px' }}>
+                Tên sản phẩm *
+              </label>
+              <input
+                type="text"
+                required
+                value={newProd.name}
+                onChange={(e) => setNewProd({ ...newProd, name: e.target.value })}
+                placeholder="VD: iPhone 16 Plus 256GB"
+                style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #86efac', fontSize: '12px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#166534', marginBottom: '4px' }}>
+                Mã SKU / Mã SP
+              </label>
+              <input
+                type="text"
+                value={newProd.productCode}
+                onChange={(e) => setNewProd({ ...newProd, productCode: e.target.value })}
+                placeholder="Tự sinh nếu để trống"
+                style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #86efac', fontSize: '12px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#166534', marginBottom: '4px' }}>
+                Giá bán (₫) *
+              </label>
+              <input
+                type="number"
+                required
+                value={newProd.price}
+                onChange={(e) => setNewProd({ ...newProd, price: e.target.value })}
+                placeholder="25000000"
+                style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #86efac', fontSize: '12px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#166534', marginBottom: '4px' }}>
+                Tồn kho ban đầu
+              </label>
+              <input
+                type="number"
+                value={newProd.stock}
+                onChange={(e) => setNewProd({ ...newProd, stock: e.target.value })}
+                placeholder="20"
+                style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #86efac', fontSize: '12px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#166534', marginBottom: '4px' }}>
+                Tải ảnh từ máy / Dán URL
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  type="text"
+                  value={newProd.image}
+                  onChange={(e) => setNewProd({ ...newProd, image: e.target.value })}
+                  placeholder="https://... hoặc chọn file"
+                  style={{ flex: 1, padding: '6px 8px', borderRadius: '6px', border: '1px solid #86efac', fontSize: '11px' }}
+                />
+                <label
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    background: '#15803d',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Upload size={13} />
+                  <span>Chọn ảnh</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) {
+                        const reader = new FileReader()
+                        reader.onload = (evt) => setNewProd({ ...newProd, image: evt.target.result })
+                        reader.readAsDataURL(f)
+                      }
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={creating}
+                style={{
+                  width: '100%',
+                  padding: '7px 16px',
+                  borderRadius: '6px',
+                  background: '#166534',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                }}
+              >
+                {creating ? 'Đang tạo...' : '💾 Lưu & Tạo sản phẩm'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Khung Liên kết sản phẩm có sẵn */}
+        {showLinkPicker && (
+          <div
+            style={{
+              padding: '16px 24px',
+              background: '#f0f9ff',
+              borderBottom: '1px solid #bae6fd',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ flex: 1, minWidth: '280px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0369a1', marginBottom: '4px' }}>
+                Chọn sản phẩm trong kho để chuyển vào danh mục "{category.name}":
+              </label>
+              <select
+                value={selectedToLink}
+                onChange={(e) => setSelectedToLink(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #7dd3fc',
+                  fontSize: '12px',
+                  background: '#ffffff',
+                }}
+              >
+                <option value="">-- Chọn sản phẩm từ danh mục khác ({unlinkedProducts.length} sản phẩm khả dụng) --</option>
+                {unlinkedProducts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({formatVND(p.price)}) — SKU: {p.productCode || p.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              disabled={!selectedToLink}
+              onClick={handleLinkExisting}
+              style={{
+                marginTop: '18px',
+                padding: '8px 18px',
+                borderRadius: '6px',
+                background: selectedToLink ? '#0284c7' : '#94a3b8',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: selectedToLink ? 'pointer' : 'not-allowed',
+              }}
+            >
+              🔗 Chuyển vào danh mục này
+            </button>
+          </div>
+        )}
+
+        {/* Danh sách Sản phẩm thuộc Danh mục */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+          {filteredProducts.length === 0 ? (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: '#94a3b8',
+                background: '#f8fafc',
+                borderRadius: '12px',
+                border: '2px dashed #e2e8f0',
+              }}
+            >
+              <Package size={40} style={{ opacity: 0.5, marginBottom: '8px' }} />
+              <h3 style={{ margin: '4px 0', color: '#475569', fontSize: '15px' }}>
+                Chưa có sản phẩm nào trong danh mục "{category.name}"
+              </h3>
+              <p style={{ margin: '4px 0 16px', fontSize: '12px' }}>
+                Bạn có thể bấm nút "+ Thêm sản phẩm mới" hoặc "🔗 Liên kết SP có sẵn" ở trên để bổ sung sản phẩm vào danh mục này.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {filteredProducts.map((prod) => {
+                const isSaving = savingId === prod.id
+                const imgDisplay = prod.image || getProductImage(prod)
+
+                return (
+                  <div
+                    key={prod.id}
+                    style={{
+                      background: prod._dirty ? '#fffbeb' : '#ffffff',
+                      border: prod._dirty ? '1px solid #fde68a' : '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '14px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      flexWrap: 'wrap',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    }}
+                  >
+                    {/* Cột 1: Thumbnail & Thao tác ảnh */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', width: '84px', flexShrink: 0 }}>
+                      <div
+                        style={{
+                          width: '74px',
+                          height: '74px',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          border: '1px solid #e2e8f0',
+                          background: '#f8fafc',
+                        }}
+                      >
+                        <img
+                          src={imgDisplay}
+                          alt={prod.name}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <label
+                          title="Tải ảnh từ máy tính"
+                          style={{
+                            padding: '3px 6px',
+                            background: '#e0f2fe',
+                            color: '#0369a1',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                          }}
+                        >
+                          <Upload size={11} />
+                          <span>Ảnh</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0]
+                              if (f) handleProductImageUpload(prod, f)
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
+
+                        {prod.image && (
+                          <button
+                            type="button"
+                            title="Gỡ ảnh tùy chỉnh"
+                            onClick={() => handleFieldChange(prod.id, 'image', '')}
+                            style={{
+                              padding: '3px 6px',
+                              background: '#fee2e2',
+                              color: '#b91c1c',
+                              border: 'none',
+                              borderRadius: '4px',
+                              fontSize: '10px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <X size={11} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Cột 2: Thông tin Tên & Mã SP */}
+                    <div style={{ flex: '1 1 240px', minWidth: '200px' }}>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', marginBottom: '2px' }}>
+                        Tên sản phẩm
+                      </label>
+                      <input
+                        type="text"
+                        value={prod.name || ''}
+                        onChange={(e) => handleFieldChange(prod.id, 'name', e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                        }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                          SKU: <code style={{ color: '#0284c7' }}>{prod.productCode || `SP-${prod.id}`}</code>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Cột 3: Giá bán & Giá vốn */}
+                    <div style={{ width: '130px', flexShrink: 0 }}>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', marginBottom: '2px' }}>
+                        Giá bán (₫)
+                      </label>
+                      <input
+                        type="number"
+                        value={prod.price ?? 0}
+                        onChange={(e) => handleFieldChange(prod.id, 'price', e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#ea580c',
+                        }}
+                      />
+                    </div>
+
+                    {/* Cột 4: Tồn kho */}
+                    <div style={{ width: '90px', flexShrink: 0 }}>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', marginBottom: '2px' }}>
+                        Tồn kho
+                      </label>
+                      <input
+                        type="number"
+                        value={prod.stockQuantity ?? prod.stock ?? prod.quantity ?? 0}
+                        onChange={(e) => handleFieldChange(prod.id, 'stockQuantity', e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#15803d',
+                        }}
+                      />
+                    </div>
+
+                    {/* Cột 5: Nút Thao tác */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => handleSaveProduct(prod)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '7px 14px',
+                          borderRadius: '6px',
+                          background: prod._dirty ? '#ea580c' : '#059669',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                        }}
+                      >
+                        <Save size={13} />
+                        <span>{isSaving ? 'Đang lưu...' : prod._dirty ? 'Lưu thay đổi *' : 'Đã lưu'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        title="Gỡ khỏi danh mục"
+                        onClick={() => handleUnlinkProduct(prod)}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          background: '#f1f5f9',
+                          color: '#ef4444',
+                          border: '1px solid #e2e8f0',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Modal Foot */}
+        <div
+          style={{
+            padding: '12px 24px',
+            borderTop: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#f8fafc',
+          }}
+        >
+          <span style={{ fontSize: '12px', color: '#64748b' }}>
+            💡 Mẹo: Ảnh tải lên từ máy tính sẽ được tự động đồng bộ sang giao diện Cửa hàng bán lẻ (Storefront).
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '6px 16px',
+              borderRadius: '6px',
+              background: '#334155',
+              color: '#ffffff',
+              border: 'none',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Đóng
+          </button>
+        </div>
       </div>
     </div>
   )

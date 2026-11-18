@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Send, MessageSquare, Package, ShoppingCart, User, Check, Sparkles } from 'lucide-react'
 import { formatVND, formatDate } from './api'
-import { getProductImage } from './CleanScreens'
+import { getProductImage } from './storefrontUtils'
 
 export function SellerChatAdminModal({ isOpen, onClose, currentUser }) {
   const [messages, setMessages] = useState(() => {

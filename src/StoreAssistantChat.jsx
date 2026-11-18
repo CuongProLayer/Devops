@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Send, Phone, Zap, MessageSquare } from 'lucide-react'
 import { formatVND, formatDate } from './api'
-import { getProductImage } from './CleanScreens'
+import { getProductImage } from './storefrontUtils'
 
 function removeVietnameseTones(str) {
   if (!str) return ''
