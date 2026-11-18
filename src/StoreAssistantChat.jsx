@@ -291,7 +291,7 @@ export function StoreAssistantChat({ products = [], orders = [], promotions = []
           const unit = getProductUnit(matched)
           actionProduct = matched
           if (stock > 0) {
-            replyText = `Dạ sản phẩm **${matched.name}** (Mã: ${matched.productCode || `PRD-${matched.id}`}) hiện đang sẵn hàng tại kho SmartStock với số lượng **${stock} ${unit}**, giá bán **${formatVND(matched.price)}**.\n\n✨ Bạn có thể bấm nút **Mua ngay** bên dưới để đặt hàng nhận ngay trong 2h nhé!`
+            replyText = `Dạ sản phẩm **${matched.name}** (Mã: ${matched.productCode || `PRD-${matched.id}`}) hiện đang sẵn hàng tại kho SmartStock với số lượng **${stock} ${unit}**, giá bán **${formatVND(matched.price)}**.\n\n✨ Bạn có thể bấm nút **Mua ngay** bên dưới để đặt hàng nhé!`
           } else {
             replyText = `Dạ mẫu **${matched.name}** hiện đang tạm hết hàng trong kho (Tồn kho: 0 ${unit}). Bạn có thể chuyển tab **"Chat với Người bán"** để shop báo lịch nhập hàng nhé!`
           }
@@ -317,7 +317,7 @@ export function StoreAssistantChat({ products = [], orders = [], promotions = []
             orders.slice(0, 3).map((o) => `• Đơn #${o.orderCode || o.id}: Trạng thái ${o.status || 'Đang xử lý'} (${formatVND(o.totalAmount)})`).join('\n') +
             `\n\nBạn có thể chuyển sang tab **"Chat với Người bán"** và bấm **"Gửi đơn hàng"** để nhân viên hỗ trợ tra cứu chi tiết.`
         } else {
-          replyText = 'Quý khách chưa có đơn hàng nào trên hệ thống hoặc đơn hàng đã hoàn tất. Bạn có thể chọn sản phẩm và bấm "Mua ngay" để trải nghiệm dịch vụ giao 2h của shop nhé!'
+          replyText = 'Quý khách chưa có đơn hàng nào trên hệ thống hoặc đơn hàng đã hoàn tất. Bạn có thể chọn sản phẩm và bấm "Mua ngay" để trải nghiệm dịch vụ mua sắm của shop nhé!'
         }
       } else if (qNorm.includes('bao hanh') || qNorm.includes('doi tra') || qNorm.includes('chinh sach')) {
         replyText = '🛡️ **Chính sách bảo hành & hậu mãi tại SmartStock**:\n' +

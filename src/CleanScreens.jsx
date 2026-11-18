@@ -4276,7 +4276,7 @@ function ExpressCheckoutModal({ product, currentUser, onClose, onSuccess, onNoti
               ) : (
                 <>
                   <Zap size={16} fill="#fff" />
-                  <span>Xác nhận Mua ngay (Giao 2 Giờ)</span>
+                  <span>Xác nhận Mua ngay</span>
                 </>
               )}
             </button>
