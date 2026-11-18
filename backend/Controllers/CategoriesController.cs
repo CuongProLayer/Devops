@@ -82,6 +82,11 @@ public class CategoriesController(AppDbContext db, IWebHostEnvironment environme
         cat.Description = request.Description;
         if (!string.IsNullOrWhiteSpace(request.Icon))
             cat.Icon = request.Icon;
+        if (request.ImageUrl != null)
+        {
+            cat.ImageUrl = string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim();
+            if (cat.ImageUrl == null) cat.ImageContentType = null;
+        }
         cat.IsActive = request.IsActive;
         await db.SaveChangesAsync();
         var productCount = await db.Products.CountAsync(p => p.CategoryId == id && p.Status == "active");
@@ -99,13 +104,7 @@ public class CategoriesController(AppDbContext db, IWebHostEnvironment environme
         if (category == null) return NotFound(new { message = "Không tìm thấy danh mục" });
         if (image == null || image.Length == 0) return BadRequest(new { message = "Vui lòng chọn ảnh" });
 
-        var contentType = image.ContentType.Trim().ToLowerInvariant();
-        if (!IsImageContentType(contentType))
-            return BadRequest(new { message = "Tệp tải lên phải có định dạng ảnh" });
-
-        var extension = GetImageExtension(image.FileName, contentType);
-        if (!await HasValidSignature(image, extension, cancellationToken))
-            return BadRequest(new { message = "Nội dung tệp không khớp với định dạng ảnh" });
+        var (extension, contentType) = await DetectImageFormatAsync(image, cancellationToken);
 
         var imageDirectory = GetImageDirectory();
         Directory.CreateDirectory(imageDirectory);
@@ -213,27 +212,63 @@ public class CategoriesController(AppDbContext db, IWebHostEnvironment environme
             : ".image";
     }
 
-    private static async Task<bool> HasValidSignature(IFormFile image, string extension, CancellationToken cancellationToken)
+    private static async Task<(string extension, string contentType)> DetectImageFormatAsync(IFormFile image, CancellationToken cancellationToken)
     {
         var header = new byte[512];
-        await using var stream = image.OpenReadStream();
-        var bytesRead = await stream.ReadAsync(header.AsMemory(), cancellationToken);
-
-        return extension switch
+        int bytesRead = 0;
+        try
         {
-            ".jpg" or ".jpeg" => bytesRead >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF,
-            ".png" => bytesRead >= 8 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47,
-            ".webp" => bytesRead >= 12 && Encoding.ASCII.GetString(header, 0, 4) == "RIFF" && Encoding.ASCII.GetString(header, 8, 4) == "WEBP",
-            ".gif" => bytesRead >= 6 && (Encoding.ASCII.GetString(header, 0, 6) is "GIF87a" or "GIF89a"),
-            ".bmp" => bytesRead >= 2 && header[0] == 0x42 && header[1] == 0x4D,
-            ".tif" or ".tiff" => bytesRead >= 4 && ((header[0] == 0x49 && header[1] == 0x49 && header[2] == 0x2A && header[3] == 0x00) || (header[0] == 0x4D && header[1] == 0x4D && header[2] == 0x00 && header[3] == 0x2A)),
-            ".ico" => bytesRead >= 4 && header[0] == 0x00 && header[1] == 0x00 && header[2] == 0x01 && header[3] == 0x00,
-            ".avif" or ".heic" or ".heif" => IsIsoImage(header, bytesRead),
-            ".svg" => IsSvg(header, bytesRead),
-            ".jxl" => bytesRead >= 2 && header[0] == 0xFF && header[1] == 0x0A,
-            ".jp2" => bytesRead >= 12 && header[4] == 0x6A && header[5] == 0x50 && header[6] == 0x20 && header[7] == 0x20,
-            _ => true,
-        };
+            await using var stream = image.OpenReadStream();
+            bytesRead = await stream.ReadAsync(header.AsMemory(), cancellationToken);
+        }
+        catch
+        {
+            // fallback
+        }
+
+        // 1. Check Magic bytes directly
+        if (bytesRead >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
+            return (".jpg", "image/jpeg");
+        if (bytesRead >= 8 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47)
+            return (".png", "image/png");
+        if (bytesRead >= 12 && Encoding.ASCII.GetString(header, 0, 4) == "RIFF" && Encoding.ASCII.GetString(header, 8, 4) == "WEBP")
+            return (".webp", "image/webp");
+        if (bytesRead >= 6 && (Encoding.ASCII.GetString(header, 0, 6) is "GIF87a" or "GIF89a"))
+            return (".gif", "image/gif");
+        if (bytesRead >= 2 && header[0] == 0x42 && header[1] == 0x4D)
+            return (".bmp", "image/bmp");
+        if (bytesRead >= 4 && header[0] == 0x00 && header[1] == 0x00 && header[2] == 0x01 && header[3] == 0x00)
+            return (".ico", "image/x-icon");
+        if (IsIsoImage(header, bytesRead))
+            return (".avif", "image/avif");
+        if (IsSvg(header, bytesRead))
+            return (".svg", "image/svg+xml");
+
+        // 2. Fallback to file extension or contentType
+        var ext = Path.GetExtension(Path.GetFileName(image.FileName))?.ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(ext) || ext.Length > 8)
+        {
+            ext = image.ContentType?.ToLowerInvariant() switch
+            {
+                "image/png" => ".png",
+                "image/webp" => ".webp",
+                "image/gif" => ".gif",
+                "image/svg+xml" => ".svg",
+                _ => ".jpg"
+            };
+        }
+        var cType = !string.IsNullOrWhiteSpace(image.ContentType) && image.ContentType.StartsWith("image/")
+            ? image.ContentType.ToLowerInvariant()
+            : ext switch
+            {
+                ".png" => "image/png",
+                ".webp" => "image/webp",
+                ".gif" => "image/gif",
+                ".svg" => "image/svg+xml",
+                _ => "image/jpeg"
+            };
+
+        return (ext, cType);
     }
 
     private static bool IsIsoImage(byte[] header, int bytesRead)

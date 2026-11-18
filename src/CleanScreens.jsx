@@ -182,7 +182,7 @@ export function CleanLogin({ onLogin }) {
       <div className="login-art">
         <div className="login-art-top">
           <div className="brand-mark">
-            <img src="/logo.png" alt="SmartStock UNG Logo" />
+            <img src="/logo.png?v=3" alt="SmartStock UNG Logo" />
           </div>
           <div className="brand-name">smart<span>stock</span></div>
         </div>
@@ -227,7 +227,7 @@ export function CleanLogin({ onLogin }) {
         <div className="login-form">
           <div className="mobile-brand">
             <div className="brand-mark">
-              <img src="/logo.png" alt="SmartStock UNG Logo" />
+              <img src="/logo.png?v=3" alt="SmartStock UNG Logo" />
             </div>
             <div className="brand-name">smart<span>stock</span></div>
           </div>
@@ -451,7 +451,7 @@ function CleanRecovery({ screen, onBack }) {
       <div className="login-art">
         <div className="login-art-top">
           <div className="brand-mark">
-            <img src="/logo.png" alt="SmartStock UNG Logo" />
+            <img src="/logo.png?v=3" alt="SmartStock UNG Logo" />
           </div>
           <div className="brand-name">smart<span>stock</span></div>
         </div>
@@ -963,7 +963,7 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
               }}
             >
               <img
-                src="/logo.png"
+                src="/logo.png?v=3"
                 alt="SmartStock UNG Logo"
                 style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
               />
@@ -5461,7 +5461,7 @@ export function CleanAdmin({ role, onLogout, currentUser, onSwitchRole, initialP
       <aside className="sidebar clean-admin-sidebar">
         <div className="brand-row" style={{ flexShrink: 0 }}>
           <div className="brand-mark" style={{ background: '#ffffff', padding: '2px', border: '1px solid rgba(0,0,0,0.08)' }}>
-            <img src="/logo.png" alt="SmartStock UNG Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <img src="/logo.png?v=3" alt="SmartStock UNG Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div>
             <div className="brand-name">smart<span>stock</span></div>
@@ -6429,8 +6429,12 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
 
   const handleUploadCategoryImage = async (category, imageFile) => {
     try {
-      await api.uploadCategoryImage(category.id, imageFile)
-      notify(`Đã cập nhật ảnh ${category.name}!`)
+      const res = await api.uploadCategoryImage(category.id, imageFile)
+      if (res?.imageUrl) {
+        setCategories((prev) => prev.map((c) => (c.id === category.id ? { ...c, imageUrl: res.imageUrl } : c)))
+      }
+      notify(`Đã cập nhật ảnh danh mục ${category.name}!`)
+      window.dispatchEvent(new CustomEvent('smartstock-data-sync'))
       await loadModuleData()
     } catch (err) {
       alert(err.message || 'Không thể tải ảnh danh mục')
@@ -6441,7 +6445,9 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
     if (!confirm(`Gỡ ảnh của danh mục ${category.name}?`)) return
     try {
       await api.deleteCategoryImage(category.id)
+      setCategories((prev) => prev.map((c) => (c.id === category.id ? { ...c, imageUrl: null } : c)))
       notify(`Đã gỡ ảnh ${category.name}!`)
+      window.dispatchEvent(new CustomEvent('smartstock-data-sync'))
       await loadModuleData()
     } catch (err) {
       alert(err.message || 'Không thể gỡ ảnh danh mục')
@@ -6476,10 +6482,14 @@ function CleanAdminModule({ page, title, description, onNavigate }) {
 
   const handleUpdateCategory = async (catData) => {
     try {
+      if (catData.imageFile) {
+        await api.uploadCategoryImage(catData.id, catData.imageFile)
+      }
       await api.updateCategory(catData.id, {
         name: catData.name,
         description: catData.description,
         icon: catData.icon,
+        imageUrl: catData.imageUrl,
         isActive: true,
       })
       notify(`✏️ Đã cập nhật danh mục "${catData.name}" thành công!`)
@@ -10238,7 +10248,18 @@ function EditCategoryModal({ category, onClose, onSave }) {
   const [name, setName] = useState(category?.name || '')
   const [description, setDescription] = useState(category?.description || '')
   const [icon, setIcon] = useState(category?.icon || '📦')
+  const [imageUrl, setImageUrl] = useState(category?.imageUrl || '')
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(category?.imageUrl ? resolveCategoryImageUrl(category) : '')
   const [saving, setSaving] = useState(false)
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImageFile(file)
+      setImagePreview(URL.createObjectURL(file))
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -10250,6 +10271,8 @@ function EditCategoryModal({ category, onClose, onSave }) {
         name: name.trim(),
         description: description.trim(),
         icon: icon.trim() || '📦',
+        imageUrl: imageFile ? undefined : imageUrl.trim(),
+        imageFile: imageFile || undefined,
       })
     } finally {
       setSaving(false)
@@ -10258,7 +10281,7 @@ function EditCategoryModal({ category, onClose, onSave }) {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-box">
+      <div className="modal-box" style={{ maxWidth: '520px' }}>
         <div className="modal-head">
           <h3>✏️ Chỉnh sửa danh mục: {category?.name}</h3>
           <button type="button" className="modal-close" onClick={onClose}><X size={18} /></button>
@@ -10281,6 +10304,64 @@ function EditCategoryModal({ category, onClose, onSave }) {
                 onChange={(e) => setIcon(e.target.value)}
                 placeholder="VD: 📱, 💻, 🎧, 🔌, 📦..."
                 maxLength={5}
+              />
+            </div>
+            <div className="form-field">
+              <label>Ảnh bìa danh mục</label>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '10px',
+                  border: '1px solid #e2e8f0',
+                  background: '#f8fafc',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  flexShrink: 0
+                }}>
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: '24px' }}>{icon || '📦'}</span>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label className="button secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0, fontSize: '12px', padding: '6px 12px' }}>
+                    <Upload size={14} /> Chọn ảnh mới từ máy tính
+                    <input type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                  </label>
+                  {imagePreview && (
+                    <button
+                      type="button"
+                      className="button ghost"
+                      style={{ fontSize: '11px', color: '#ef4444', marginLeft: '8px', padding: '4px 8px' }}
+                      onClick={() => {
+                        setImageFile(null)
+                        setImageUrl('')
+                        setImagePreview('')
+                      }}
+                    >
+                      Gỡ ảnh
+                    </button>
+                  )}
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                    Hỗ trợ JPG, PNG, WebP, GIF, SVG... Lưu vĩnh viễn vào Database
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="form-field">
+              <label>Hoặc dán Link URL ảnh:</label>
+              <input
+                value={imageUrl}
+                onChange={(e) => {
+                  setImageUrl(e.target.value)
+                  setImageFile(null)
+                  setImagePreview(e.target.value)
+                }}
+                placeholder="https://images.unsplash.com/..."
               />
             </div>
             <div className="form-field">

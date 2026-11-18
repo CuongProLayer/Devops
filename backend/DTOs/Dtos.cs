@@ -58,7 +58,8 @@ public record UpdateCategoryRequest(
     [Required(ErrorMessage = "Tên danh mục không được để trống")][StringLength(100, ErrorMessage = "Tên danh mục không vượt quá 100 ký tự")] string Name,
     [StringLength(500, ErrorMessage = "Mô tả không vượt quá 500 ký tự")] string? Description,
     [StringLength(50, ErrorMessage = "Icon không vượt quá 50 ký tự")] string? Icon,
-    bool IsActive);
+    bool IsActive,
+    string? ImageUrl = null);
 
 // Supplier
 public record SupplierDto(int Id, string SupplierCode, string Name, string? Phone, string? Email, string? Address, string? ContactPerson, string Status, DateTime CreatedAt);

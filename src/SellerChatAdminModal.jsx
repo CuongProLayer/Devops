@@ -89,7 +89,7 @@ export function SellerChatAdminModal({ isOpen, onClose, currentUser }) {
 
   const quickReplies = [
     'Dạ chào bạn! SmartStock xin nghe, shop có thể hỗ trợ gì cho bạn về sản phẩm này ạ?',
-    'Dạ mẫu này hiện đang có sẵn hàng tại kho SmartStock, hỗ trợ giao hàng hỏa tốc trong 2 giờ bạn nhé!',
+    'Dạ mẫu này hiện đang có sẵn hàng tại kho SmartStock, hỗ trợ giao hàng hỏa tốc toàn quốc bạn nhé!',
     'Dạ đơn hàng của bạn đã được xuất kho và đang trên đường giao bưu tá Viettel Post rồi ạ.',
     'Dạ sản phẩm được bảo hành chính hãng 12 tháng, đổi mới 1-1 trong 30 ngày nếu có lỗi kỹ thuật ạ.',
   ]
