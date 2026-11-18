@@ -9377,19 +9377,76 @@ function CategoryProductsModal({
     )
   }, [productsList, searchTerm])
 
-  // Xử lý upload ảnh sản phẩm từ máy tính (chuyển sang Base64 data URL)
+  // Xử lý upload ảnh sản phẩm từ máy tính (chuyển sang Base64 data URL) và TỰ ĐỘNG LƯU VÀO DATABASE NGAY
   const handleProductImageUpload = (product, file) => {
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const dataUrl = e.target.result
+      // Cập nhật preview tức thì
       setProductsList((prev) =>
         prev.map((item) =>
-          item.id === product.id ? { ...item, image: dataUrl, _dirty: true } : item
+          item.id === product.id ? { ...item, image: dataUrl } : item
         )
       )
+      // Tự động lưu thẳng vào Database ngay lập tức
+      setSavingId(product.id)
+      try {
+        const payload = {
+          name: product.name,
+          productCode: product.productCode || `SP-${product.id}`,
+          categoryId: category.id,
+          price: Number(product.price) || 0,
+          costPrice: Number(product.costPrice) || 0,
+          stockQuantity: Number(product.stockQuantity ?? product.stock ?? product.quantity) || 0,
+          image: dataUrl,
+          description: product.description || '',
+        }
+        await api.updateProduct(product.id, payload)
+        setProductsList((prev) =>
+          prev.map((item) =>
+            item.id === product.id ? { ...item, image: dataUrl, _dirty: false } : item
+          )
+        )
+        onNotify?.(`💾 Đã lưu trực tiếp ảnh của "${product.name}" vào Database!`)
+        window.dispatchEvent(new Event('smartstock-data-sync'))
+        onRefresh?.()
+      } catch (err) {
+        console.error('Lỗi tự động lưu ảnh:', err)
+        alert('Lỗi lưu ảnh sản phẩm: ' + (err.message || 'Không thể lưu vào CSDL'))
+      } finally {
+        setSavingId(null)
+      }
     }
     reader.readAsDataURL(file)
+  }
+
+  // Gỡ ảnh tùy chỉnh và lưu vào database ngay
+  const handleRemoveProductImage = async (product) => {
+    setSavingId(product.id)
+    try {
+      const payload = {
+        name: product.name,
+        productCode: product.productCode || `SP-${product.id}`,
+        categoryId: category.id,
+        price: Number(product.price) || 0,
+        costPrice: Number(product.costPrice) || 0,
+        stockQuantity: Number(product.stockQuantity ?? product.stock ?? product.quantity) || 0,
+        image: '',
+        description: product.description || '',
+      }
+      await api.updateProduct(product.id, payload)
+      setProductsList((prev) =>
+        prev.map((item) => (item.id === product.id ? { ...item, image: '', _dirty: false } : item))
+      )
+      onNotify?.(`Đã gỡ ảnh tùy chỉnh của "${product.name}"!`)
+      window.dispatchEvent(new Event('smartstock-data-sync'))
+      onRefresh?.()
+    } catch (err) {
+      alert(err.message || 'Lỗi khi gỡ ảnh')
+    } finally {
+      setSavingId(null)
+    }
   }
 
   // Cập nhật trường dữ liệu sản phẩm trong state
@@ -9399,6 +9456,25 @@ function CategoryProductsModal({
         item.id === productId ? { ...item, [field]: value, _dirty: true } : item
       )
     )
+  }
+
+  // Lưu tất cả các sản phẩm đang có thay đổi chưa lưu
+  const dirtyCount = productsList.filter((p) => p._dirty).length
+  const handleSafeClose = () => {
+    if (dirtyCount > 0) {
+      if (!window.confirm(`⚠️ Bạn đang có ${dirtyCount} sản phẩm có thay đổi chưa lưu. Bạn có chắc chắn muốn đóng mà không lưu không?`)) {
+        return
+      }
+    }
+    onClose()
+  }
+  const handleSaveAllDirty = async () => {
+    const dirtyItems = productsList.filter((p) => p._dirty)
+    if (dirtyItems.length === 0) return
+    for (const item of dirtyItems) {
+      await handleSaveProduct(item)
+    }
+    onNotify?.(`🎉 Đã lưu thành công tất cả ${dirtyItems.length} sản phẩm vào Database!`)
   }
 
   // Lưu thay đổi sản phẩm vào Backend & SQL Server
@@ -9537,7 +9613,7 @@ function CategoryProductsModal({
         padding: '16px',
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) handleSafeClose()
       }}
     >
       <div
@@ -9606,7 +9682,7 @@ function CategoryProductsModal({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleSafeClose}
             style={{
               background: '#f1f5f9',
               border: 'none',
@@ -9659,6 +9735,31 @@ function CategoryProductsModal({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {dirtyCount > 0 && (
+              <button
+                type="button"
+                onClick={handleSaveAllDirty}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  background: '#ea580c',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(234, 88, 12, 0.3)',
+                  animation: 'pulse 2s infinite',
+                }}
+              >
+                <Save size={15} />
+                <span>💾 Lưu tất cả ({dirtyCount} SP chưa lưu)</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -10002,7 +10103,8 @@ function CategoryProductsModal({
                           <button
                             type="button"
                             title="Gỡ ảnh tùy chỉnh"
-                            onClick={() => handleFieldChange(prod.id, 'image', '')}
+                            disabled={isSaving}
+                            onClick={() => handleRemoveProductImage(prod)}
                             style={{
                               padding: '3px 6px',
                               background: '#fee2e2',
@@ -10152,7 +10254,7 @@ function CategoryProductsModal({
           </span>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleSafeClose}
             style={{
               padding: '6px 16px',
               borderRadius: '6px',
