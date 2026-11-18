@@ -9392,20 +9392,23 @@ function CategoryProductsModal({
       // Tự động lưu thẳng vào Database ngay lập tức
       setSavingId(product.id)
       try {
+        const targetQty = Number(product.quantity != null ? product.quantity : (product.stockQuantity ?? product.stock ?? 35))
         const payload = {
           name: product.name,
           productCode: product.productCode || `SP-${product.id}`,
           categoryId: category.id,
           price: Number(product.price) || 0,
           costPrice: Number(product.costPrice) || 0,
-          stockQuantity: Number(product.stockQuantity ?? product.stock ?? product.quantity) || 0,
+          quantity: targetQty,
+          stockQuantity: targetQty,
+          stock: targetQty,
           image: dataUrl,
           description: product.description || '',
         }
         await api.updateProduct(product.id, payload)
         setProductsList((prev) =>
           prev.map((item) =>
-            item.id === product.id ? { ...item, image: dataUrl, _dirty: false } : item
+            item.id === product.id ? { ...item, image: dataUrl, quantity: targetQty, stockQuantity: targetQty, stock: targetQty, _dirty: false } : item
           )
         )
         onNotify?.(`💾 Đã lưu trực tiếp ảnh của "${product.name}" vào Database!`)
@@ -9425,19 +9428,22 @@ function CategoryProductsModal({
   const handleRemoveProductImage = async (product) => {
     setSavingId(product.id)
     try {
+      const targetQty = Number(product.quantity != null ? product.quantity : (product.stockQuantity ?? product.stock ?? 35))
       const payload = {
         name: product.name,
         productCode: product.productCode || `SP-${product.id}`,
         categoryId: category.id,
         price: Number(product.price) || 0,
         costPrice: Number(product.costPrice) || 0,
-        stockQuantity: Number(product.stockQuantity ?? product.stock ?? product.quantity) || 0,
+        quantity: targetQty,
+        stockQuantity: targetQty,
+        stock: targetQty,
         image: '',
         description: product.description || '',
       }
       await api.updateProduct(product.id, payload)
       setProductsList((prev) =>
-        prev.map((item) => (item.id === product.id ? { ...item, image: '', _dirty: false } : item))
+        prev.map((item) => (item.id === product.id ? { ...item, image: '', quantity: targetQty, stockQuantity: targetQty, stock: targetQty, _dirty: false } : item))
       )
       onNotify?.(`Đã gỡ ảnh tùy chỉnh của "${product.name}"!`)
       window.dispatchEvent(new Event('smartstock-data-sync'))
@@ -9452,9 +9458,15 @@ function CategoryProductsModal({
   // Cập nhật trường dữ liệu sản phẩm trong state
   const handleFieldChange = (productId, field, value) => {
     setProductsList((prev) =>
-      prev.map((item) =>
-        item.id === productId ? { ...item, [field]: value, _dirty: true } : item
-      )
+      prev.map((item) => {
+        if (item.id !== productId) return item
+        const updated = { ...item, [field]: value, _dirty: true }
+        if (field === 'quantity') {
+          updated.stockQuantity = value
+          updated.stock = value
+        }
+        return updated
+      })
     )
   }
 
@@ -9481,19 +9493,22 @@ function CategoryProductsModal({
   const handleSaveProduct = async (product) => {
     setSavingId(product.id)
     try {
+      const targetQty = Number(product.quantity != null ? product.quantity : (product.stockQuantity ?? product.stock ?? 35))
       const payload = {
         name: product.name,
         productCode: product.productCode || `SP-${product.id}`,
         categoryId: category.id,
         price: Number(product.price) || 0,
         costPrice: Number(product.costPrice) || 0,
-        stockQuantity: Number(product.stockQuantity ?? product.stock ?? product.quantity) || 0,
+        quantity: targetQty,
+        stockQuantity: targetQty,
+        stock: targetQty,
         image: product.image || '',
         description: product.description || '',
       }
       await api.updateProduct(product.id, payload)
       setProductsList((prev) =>
-        prev.map((item) => (item.id === product.id ? { ...item, _dirty: false } : item))
+        prev.map((item) => (item.id === product.id ? { ...item, quantity: targetQty, stockQuantity: targetQty, stock: targetQty, _dirty: false } : item))
       )
       onNotify?.(`✅ Đã lưu thay đổi cho sản phẩm "${product.name}"!`)
       window.dispatchEvent(new Event('smartstock-data-sync'))
@@ -10175,8 +10190,8 @@ function CategoryProductsModal({
                       </label>
                       <input
                         type="number"
-                        value={prod.stockQuantity ?? prod.stock ?? prod.quantity ?? 0}
-                        onChange={(e) => handleFieldChange(prod.id, 'stockQuantity', e.target.value)}
+                        value={prod.quantity != null ? prod.quantity : (prod.stockQuantity ?? prod.stock ?? 0)}
+                        onChange={(e) => handleFieldChange(prod.id, 'quantity', Number(e.target.value))}
                         style={{
                           width: '100%',
                           padding: '6px 8px',

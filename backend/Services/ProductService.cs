@@ -73,7 +73,7 @@ public class ProductService(AppDbContext db) : IProductService
             Image = request.EffectiveImage,
             Price = request.Price,
             CostPrice = request.CostPrice,
-            Quantity = request.Quantity,
+            Quantity = request.EffectiveQuantity,
             MinStock = request.MinStock,
             Unit = request.Unit ?? "cái",
             CategoryId = request.CategoryId,
@@ -115,7 +115,7 @@ public class ProductService(AppDbContext db) : IProductService
         product.Description = request.Description;
         product.Price = request.Price;
         product.CostPrice = request.CostPrice;
-        product.Quantity = request.Quantity;
+        product.Quantity = request.EffectiveQuantity;
         product.MinStock = request.MinStock;
         product.Unit = request.Unit;
         product.CategoryId = request.CategoryId;

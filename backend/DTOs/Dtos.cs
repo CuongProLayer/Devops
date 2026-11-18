@@ -147,6 +147,9 @@ public class CreateProductRequest
 
     [Range(0, int.MaxValue, ErrorMessage = "Số lượng không được âm")]
     public int Quantity { get; set; }
+    public int? StockQuantity { get; set; }
+    public int? Stock { get; set; }
+    public int EffectiveQuantity => StockQuantity ?? Stock ?? Quantity;
 
     [Range(0, int.MaxValue, ErrorMessage = "Tồn kho tối thiểu không được âm")]
     public int MinStock { get; set; } = 5;
@@ -181,6 +184,9 @@ public class UpdateProductRequest
 
     [Range(0, int.MaxValue, ErrorMessage = "Số lượng không được âm")]
     public int Quantity { get; set; }
+    public int? StockQuantity { get; set; }
+    public int? Stock { get; set; }
+    public int EffectiveQuantity => StockQuantity ?? Stock ?? Quantity;
 
     [Range(0, int.MaxValue, ErrorMessage = "Tồn kho tối thiểu không được âm")]
     public int MinStock { get; set; } = 5;
