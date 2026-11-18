@@ -70,6 +70,9 @@ import {
   Sparkles,
   Clock,
   Gift,
+  ExternalLink,
+  Save,
+  Image,
 } from 'lucide-react'
 import { api, formatVND, formatDate } from './api'
 import {
