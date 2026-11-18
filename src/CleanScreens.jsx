@@ -2020,6 +2020,11 @@ export function CleanStorefront({ onLogout, currentUser, onSwitchRole }) {
           onLogout={onLogout}
           initialTab={customerProfileInitialTab}
           onAddToCart={addToCart}
+          onOpenCart={() => {
+            setCustomerProfileOpen(false)
+            setCartDrawerOpen(true)
+          }}
+          allProducts={products}
           onRefreshOrders={() => {
             api.getOrders().then((data) => {
               if (Array.isArray(data)) setOrders(data)

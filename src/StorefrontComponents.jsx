@@ -3300,6 +3300,8 @@ export function CustomerProfileModal({
   onLogout,
   initialTab = 'profile',
   onAddToCart,
+  onOpenCart,
+  allProducts = [],
   onRefreshOrders,
 }) {
   const [activeTab, setActiveTab] = useState(initialTab) // 'profile' | 'orders' | 'address' | 'warranty' | 'vouchers' | 'loyalty' | 'notifications'
@@ -3318,6 +3320,22 @@ export function CustomerProfileModal({
   // State quản lý danh sách & chi tiết đơn hàng
   const [orderStatusFilter, setOrderStatusFilter] = useState('all') // 'all' | 'pending' | 'processing' | 'shipping' | 'completed' | 'cancelled'
   const [selectedOrder, setSelectedOrder] = useState(null)
+
+  // State Đánh giá sản phẩm
+  const [reviewModalOrder, setReviewModalOrder] = useState(null)
+  const [reviewTargetItem, setReviewTargetItem] = useState(null)
+  const [reviewRating, setReviewRating] = useState(5)
+  const [reviewHoverRating, setReviewHoverRating] = useState(0)
+  const [reviewComment, setReviewComment] = useState('')
+  const [reviewSelectedTags, setReviewSelectedTags] = useState([])
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
+  const [reviewedOrders, setReviewedOrders] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('smartstock_reviewed_orders') || '{}')
+    } catch {
+      return {}
+    }
+  })
 
   // Tra cứu bảo hành điện tử
   const [warrantyKeyword, setWarrantyKeyword] = useState(currentUser?.phone || '')
@@ -3813,30 +3831,134 @@ export function CustomerProfileModal({
 
   // Xử lý Mua lại đơn hàng (Re-order)
   const handleReorder = (targetOrder) => {
-    const items = targetOrder.items || targetOrder.orderDetails || targetOrder.details || []
-    if (items.length === 0) {
+    const rawItems = targetOrder.items || targetOrder.orderDetails || targetOrder.details || []
+    if (rawItems.length === 0) {
       onNotify?.('⚠️ Đơn hàng không có thông tin sản phẩm để mua lại.')
       return
     }
-    items.forEach((it) => {
-      const p = {
-        id: it.productId || it.id,
-        name: it.productName || it.name,
-        price: it.unitPrice || it.price,
-        image: it.image || getProductImage(it) || getCategoryFallbackImage(it),
-        sku: it.sku || `SKU-${it.productId || it.id}`,
+
+    let addedCount = 0
+    rawItems.forEach((it) => {
+      const itName = (it.productName || it.name || '').toLowerCase().trim()
+      const itCode = (it.sku || it.productCode || '').toLowerCase().trim()
+      const itId = it.productId || it.id
+
+      // Đối chiếu với danh mục sản phẩm hiện hành trên Storefront
+      const matched = (allProducts || []).find((p) => {
+        if (itId && (p.id === itId || p.id?.toString() === itId?.toString())) return true
+        if (itCode && (p.productCode || '').toLowerCase().trim() === itCode) return true
+        if (itName && (p.name || '').toLowerCase().trim() === itName) return true
+        return false
+      })
+
+      const finalProduct = matched || {
+        id: itId || `p_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        name: it.productName || it.name || 'Sản phẩm SmartStock',
+        price: it.unitPrice || it.price || 0,
+        image: it.image || it.productImage || (matched ? getProductImage(matched) : getCategoryFallbackImage(it)),
+        productCode: it.sku || it.productCode || `SKU-${itId}`,
+        quantity: 99,
       }
-      onAddToCart?.(p, it.quantity || 1)
+
+      const q = it.quantity || it.qty || 1
+      onAddToCart?.(finalProduct, q)
+      addedCount++
     })
-    onNotify?.(`🎉 Đã thêm ${items.length} món vào giỏ hàng thành công!`)
+
+    onNotify?.(`🛒 Đã thêm sản phẩm từ đơn hàng vào giỏ hàng!`)
+    onClose?.()
+    onOpenCart?.()
   }
 
   // Xử lý Tra cứu bảo hành cho đơn hàng
   const handleLookupOrderWarranty = (targetOrder) => {
-    const term = targetOrder.orderCode || targetOrder.customerPhone || currentUser?.phone || ''
+    if (!targetOrder) return
+    const code = (targetOrder.orderCode || targetOrder.id || '').toString()
+    const phone = (targetOrder.customerPhone || targetOrder.phone || currentUser?.phone || '').toString()
+    const term = code || phone
     setWarrantyKeyword(term)
     setActiveTab('warranty')
-    handleWarrantySearch(term)
+    setWarrantyHasSearched(true)
+    setWarrantyResults([targetOrder])
+    setSelectedOrder(null)
+  }
+
+  // Mở modal Đánh giá sản phẩm
+  const handleOpenReview = (targetOrder) => {
+    if (!targetOrder) return
+    const orderKey = targetOrder.orderCode || targetOrder.id
+    if (reviewedOrders[orderKey]) {
+      onNotify?.('ℹ️ Bạn đã gửi đánh giá cho đơn hàng này rồi. Cảm ơn bạn!')
+      return
+    }
+    const items = targetOrder.items || targetOrder.orderDetails || targetOrder.details || []
+    setReviewModalOrder(targetOrder)
+    setReviewTargetItem(items[0] || null)
+    setReviewRating(5)
+    setReviewHoverRating(0)
+    setReviewComment('')
+    setReviewSelectedTags(['✨ Hàng chính hãng nguyên seal', '⚡ Giao hàng siêu tốc'])
+  }
+
+  const handleToggleReviewTag = (tag) => {
+    setReviewSelectedTags((prev) => {
+      const exists = prev.includes(tag)
+      if (exists) return prev.filter((t) => t !== tag)
+      return [...prev, tag]
+    })
+  }
+
+  const handleSubmitReview = async (e) => {
+    e?.preventDefault()
+    if (!reviewModalOrder) return
+    setReviewSubmitting(true)
+    try {
+      const orderKey = reviewModalOrder.orderCode || reviewModalOrder.id
+      const prodName = reviewTargetItem?.productName || reviewTargetItem?.name || 'Sản phẩm công nghệ SmartStock'
+      const prodId = reviewTargetItem?.productId || reviewTargetItem?.id || 1
+
+      const tagText = reviewSelectedTags.length > 0 ? ` [${reviewSelectedTags.join(', ')}]` : ''
+      const finalComment = `${reviewComment.trim() || 'Sản phẩm rất tốt, giao hàng nhanh và đóng gói cẩn thận.'}${tagText}`
+
+      const payload = {
+        customerName: profileData.fullName || currentUser?.fullName || currentUser?.username || 'Khách hàng SmartStock',
+        customerEmail: profileData.email || currentUser?.email || 'customer@smartstock.vn',
+        productId: prodId,
+        productName: prodName,
+        rating: reviewRating,
+        comment: finalComment,
+        orderCode: orderKey,
+        isApproved: true,
+        status: 'approved',
+        createdAt: new Date().toISOString(),
+      }
+
+      await api.createReview(payload)
+
+      // Thưởng +1.000 Xu vào tài khoản khách
+      try {
+        const curCoins = parseInt(localStorage.getItem(coinKey) || '0', 10)
+        const updatedCoins = curCoins + 1000
+        localStorage.setItem(coinKey, updatedCoins.toString())
+        window.dispatchEvent(new CustomEvent('smartstock_coins_updated', { detail: { coins: updatedCoins } }))
+      } catch {}
+
+      // Đánh dấu đơn đã đánh giá
+      const updatedReviewed = { ...reviewedOrders, [orderKey]: true }
+      localStorage.setItem('smartstock_reviewed_orders', JSON.stringify(updatedReviewed))
+      setReviewedOrders(updatedReviewed)
+
+      // Đồng bộ toàn hệ thống (Storefront và Admin nhận ngay)
+      window.dispatchEvent(new Event('smartstock-data-sync'))
+      window.dispatchEvent(new Event('smartstock_review_update'))
+
+      setReviewModalOrder(null)
+      onNotify?.('🎉 Cảm ơn bạn đã đánh giá sản phẩm! Bạn nhận được +1.000 Xu thưởng.')
+    } catch (err) {
+      alert(err.message || 'Lỗi khi gửi đánh giá')
+    } finally {
+      setReviewSubmitting(false)
+    }
   }
 
   // Doanh số & Hạng thành viên (chỉ tính các đơn hợp lệ hoàn tất của chính khách hàng này, loại trừ đơn hủy/thất bại)
@@ -4914,28 +5036,56 @@ export function CustomerProfileModal({
                                   <span>Tra cứu bảo hành</span>
                                 </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onNotify?.('⭐ Cảm ơn quý khách! Đánh giá 5 sao cho đơn hàng đã được ghi nhận thành công.')
-                                  }}
-                                  style={{
-                                    padding: '8px 16px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #cbd5e1',
-                                    background: '#ffffff',
-                                    color: '#334155',
-                                    fontSize: '12px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                  }}
-                                >
-                                  <Star size={15} color="#f59e0b" fill="#f59e0b" />
-                                  <span>Đánh giá sản phẩm</span>
-                                </button>
+                                {(() => {
+                                  const isReviewed = Boolean(reviewedOrders[selectedOrder.orderCode || selectedOrder.id])
+                                  if (isReviewed) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => onNotify?.('ℹ️ Đơn hàng này đã được bạn gửi đánh giá rồi. Cảm ơn bạn!')}
+                                        style={{
+                                          padding: '8px 16px',
+                                          borderRadius: '8px',
+                                          border: '1px solid #bbf7d0',
+                                          background: '#f0fdf4',
+                                          color: '#15803d',
+                                          fontSize: '12px',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                        }}
+                                      >
+                                        <Check size={15} color="#15803d" />
+                                        <span>✓ Đã đánh giá (+1.000 Xu)</span>
+                                      </button>
+                                    )
+                                  }
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenReview(selectedOrder)}
+                                      style={{
+                                        padding: '8px 16px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #fde68a',
+                                        background: '#fffbeb',
+                                        color: '#b45309',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                      }}
+                                    >
+                                      <Star size={15} color="#f59e0b" fill="#f59e0b" />
+                                      <span>★ Đánh giá sản phẩm (+1.000 Xu)</span>
+                                    </button>
+                                  )
+                                })()}
 
                                 <button
                                   type="button"
@@ -5949,6 +6099,289 @@ export function CustomerProfileModal({
             </div>
           )}
         </div>
+
+        {/* MODAL ĐÁNH GIÁ SẢN PHẨM TRONG ĐƠN HÀNG */}
+        {reviewModalOrder && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setReviewModalOrder(null)
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '520px',
+                background: '#ffffff',
+                borderRadius: '16px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  padding: '16px 20px',
+                  borderBottom: '1px solid #f1f5f9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: '#f8fafc',
+                }}
+              >
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                    Đánh giá sản phẩm
+                  </h3>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>
+                    Đơn hàng {reviewModalOrder.orderCode || `#ORD-${reviewModalOrder.id}`} • Nhận ngay +1.000 Xu
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReviewModalOrder(null)}
+                  style={{
+                    background: '#f1f5f9',
+                    border: 'none',
+                    borderRadius: '8px',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Form body */}
+              <form onSubmit={handleSubmitReview} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Chọn sản phẩm nếu đơn có nhiều sản phẩm */}
+                {(() => {
+                  const items = reviewModalOrder.items || reviewModalOrder.orderDetails || reviewModalOrder.details || []
+                  if (items.length <= 1) {
+                    const it = items[0]
+                    const itImg = it?.image || getProductImage(it) || getCategoryFallbackImage(it)
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', background: '#fff', border: '1px solid #cbd5e1', flexShrink: 0 }}>
+                          <img src={itImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {it?.productName || it?.name || 'Sản phẩm SmartStock'}
+                          </strong>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>
+                            Số lượng: x{it?.quantity || 1} • {formatVND(it?.unitPrice || it?.price || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                        Chọn sản phẩm bạn muốn đánh giá:
+                      </label>
+                      <select
+                        value={reviewTargetItem?.id || ''}
+                        onChange={(e) => {
+                          const chosen = items.find((it) => (it.productId || it.id).toString() === e.target.value.toString())
+                          if (chosen) setReviewTargetItem(chosen)
+                        }}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                      >
+                        {items.map((it, idx) => (
+                          <option key={idx} value={it.productId || it.id}>
+                            {it.productName || it.name} (x{it.quantity || 1})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )
+                })()}
+
+                {/* Chọn số sao */}
+                <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px' }}>
+                    Chất lượng sản phẩm:
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const active = (reviewHoverRating || reviewRating) >= star
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setReviewRating(star)}
+                          onMouseEnter={() => setReviewHoverRating(star)}
+                          onMouseLeave={() => setReviewHoverRating(0)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            transition: 'transform 0.1s ease',
+                          }}
+                        >
+                          <Star
+                            size={32}
+                            color={active ? '#f59e0b' : '#cbd5e1'}
+                            fill={active ? '#f59e0b' : 'none'}
+                          />
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: 700, color: '#ea580c' }}>
+                    {reviewRating === 5 && '⭐⭐⭐⭐⭐ Tuyệt vời - Rất đáng tiền'}
+                    {reviewRating === 4 && '⭐⭐⭐⭐ Hài lòng - Chất lượng tốt'}
+                    {reviewRating === 3 && '⭐⭐⭐ Bình thường - Tạm ổn'}
+                    {reviewRating === 2 && '⭐⭐ Chưa hài lòng'}
+                    {reviewRating === 1 && '⭐ Rất tệ - Thất vọng'}
+                  </div>
+                </div>
+
+                {/* Gợi ý tags nhanh */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Gợi ý đánh giá nhanh:
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {[
+                      '✨ Hàng chính hãng nguyên seal',
+                      '⚡ Giao hàng siêu tốc',
+                      '📦 Đóng gói cẩn thận',
+                      '💎 Chất lượng tuyệt vời',
+                      '👩‍💼 Hỗ trợ nhiệt tình',
+                      '🔋 Pin dùng rất trâu',
+                      '📸 Camera sắc nét',
+                    ].map((tag) => {
+                      const isSelected = reviewSelectedTags.includes(tag)
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => handleToggleReviewTag(tag)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '16px',
+                            border: isSelected ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                            background: isSelected ? '#fff7ed' : '#ffffff',
+                            color: isSelected ? '#ea580c' : '#475569',
+                            fontSize: '11px',
+                            fontWeight: isSelected ? 700 : 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {isSelected ? '✓ ' : '+ '}{tag}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Nhập nhận xét chi tiết */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Nội dung nhận xét chi tiết:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="Hãy chia sẻ trải nghiệm thực tế của bạn về sản phẩm này để giúp những người mua sau nhé..."
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '12px',
+                      outline: 'none',
+                      resize: 'vertical',
+                      lineHeight: 1.5,
+                    }}
+                  />
+                </div>
+
+                {/* Phần thưởng Xu */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    background: '#fef3c7',
+                    border: '1px solid #fde68a',
+                    fontSize: '11px',
+                    color: '#92400e',
+                  }}
+                >
+                  <Gift size={16} color="#d97706" />
+                  <span>
+                    Đánh giá ngay nhận liền <strong>+1.000 SmartStock Xu</strong> tích lũy vào tài khoản!
+                  </span>
+                </div>
+
+                {/* Submit button */}
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setReviewModalOrder(null)}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      color: '#475569',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={reviewSubmitting}
+                    style={{
+                      flex: 2,
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: '#ea580c',
+                      color: '#ffffff',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+                    }}
+                  >
+                    {reviewSubmitting ? 'Đang gửi...' : '🚀 Gửi đánh giá ngay (+1.000 Xu)'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

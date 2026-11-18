@@ -256,6 +256,13 @@ export const api = {
         { id: 4, customerName: 'Phan Thị Thu Hà', customerEmail: 'thuha.phan@yahoo.com', productId: 5, productName: 'Cáp sạc Anker USB-C to Lightning', rating: 4, comment: 'Sạc nhanh chuẩn MFi, dây bện dù chắc chắn, dùng rất an tâm.', isApproved: true, status: 'approved', createdAt: '2026-10-25T16:45:00Z' },
       ]
     }
+    // Hợp nhất các đánh giá của người dùng từ localStorage
+    try {
+      const customReviews = JSON.parse(localStorage.getItem('smartstock_custom_reviews') || '[]')
+      if (Array.isArray(customReviews) && customReviews.length > 0) {
+        list = [...customReviews, ...list]
+      }
+    } catch {}
     // Merge local review overrides / replies if any
     try {
       const localReplies = JSON.parse(localStorage.getItem('smartstock_review_replies') || '{}')
@@ -271,16 +278,28 @@ export const api = {
   },
 
   async createReview(data) {
+    let created = null
     try {
-      const res = await apiRequest('/reviews', {
+      created = await apiRequest('/reviews', {
         method: 'POST',
         body: JSON.stringify(data),
       })
-      return res
     } catch (e) {
-      console.warn('API createReview error, using local fallback:', e)
-      return { id: Date.now(), ...data, isApproved: true, createdAt: new Date().toISOString() }
+      console.warn('API createReview fallback to localStorage:', e)
     }
+    const finalReview = created || {
+      id: Date.now(),
+      ...data,
+      isApproved: true,
+      status: 'approved',
+      createdAt: new Date().toISOString(),
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem('smartstock_custom_reviews') || '[]')
+      stored.unshift(finalReview)
+      localStorage.setItem('smartstock_custom_reviews', JSON.stringify(stored))
+    } catch {}
+    return finalReview
   },
 
   async replyReview(id, adminReply) {
